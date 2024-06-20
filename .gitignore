@@ -1,0 +1,18 @@
+.venv
+.idea
+*.iml
+*.ipr
+*.log
+
+*/__pycache__/
+/.pytest_cache/
+
+logs/
+data/
+
+# Ignore Python bytecode and cache files
+/__pycache__/
+*.py[cod]
+*.pyc
+*.pyo
+/data/
