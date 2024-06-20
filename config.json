@@ -1,0 +1,41 @@
+{
+  "project": {
+    "name": "mlp",
+    "version": "1.0.0",
+    "description": "A project for training and deploying a machine learning model"
+  },
+  "settings": {
+    "log_level": "INFO",
+    "max_retries": 3
+  },
+  "paths": {
+    "output_directory": "data",
+    "source_directory": "src",
+    "logs_directory": "logs",
+    "temp_directory": ".temp",
+    "csv_directory": "data/csv",
+    "model_directory": "data/models",
+    "plot_directory": "data/plots"
+  },
+  "wdbc_labels": {
+    "id": "id",
+    "diagnosis": "diagnosis",
+        "radius_types": [
+        "mean",
+        "se",
+        "worst"
+    ],
+    "base_features": [
+        "radius",
+        "texture",
+        "perimeter",
+        "area",
+        "smoothness",
+        "compactness",
+        "concavity",
+        "concave_points",
+        "symmetry",
+        "fractal_dimension"
+    ]
+  }
+}
