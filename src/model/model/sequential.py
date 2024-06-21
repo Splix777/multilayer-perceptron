@@ -1,6 +1,5 @@
+
 import numpy as np
-import h5py
-import json
 
 from pandas import DataFrame
 
@@ -8,15 +7,24 @@ from .model import Model
 from ..layers.layer import Layer
 from ..layers.input import InputLayer
 from ..optimizers.optimizer import Optimizer
+from ..callbacks.callback import Callback
+
 from ..losses.loss import Loss
 
 
 class Sequential(Model):
     def __init__(self):
         super().__init__()
+        self.losses = {'training': [], 'validation': []}
+        self.metrics = {'training': [], 'validation': []}
+        self.optimizer = None
+        self.loss = None
         self._layers = None
         self.built = False
+        self.callbacks = None
+        self.stop_training = False
 
+    # Core Methods
     def add(self, layer: Layer) -> None:
         """
         Add a layer to the model.
@@ -51,7 +59,7 @@ class Sequential(Model):
 
         self.built = True
 
-    def compile(self, loss: Loss, optimizer: Optimizer) -> None:
+    def compile(self, losses: Loss, optimizer: Optimizer) -> None:
         """
         Configure the model for training.
 
@@ -65,11 +73,11 @@ class Sequential(Model):
         TypeError: If losses is not callable or optimizers
             is not an instance of a valid optimizers class.
         """
-        if not callable(loss):
+        if not callable(losses):
             raise TypeError("The losses function must be callable.")
         if not hasattr(optimizer, 'update'):
             raise TypeError("The optimizers must have an 'update' method.")
-        self.loss = loss
+        self.loss = losses
         self.optimizer = optimizer
 
     def call(self, inputs: np.ndarray | list) -> np.ndarray | list:
@@ -123,8 +131,9 @@ class Sequential(Model):
 
         return loss_gradient
 
-    def fit(self, X: DataFrame, epochs: int, val_df: DataFrame = None,
-            callbacks: list[object] = None) -> None:
+    def fit(self, X: DataFrame, epochs: int, val_split: float = None,
+            val_data: DataFrame = None, callbacks: list[Callback] = None,
+            batch_size: int = 32, verbose: bool = False) -> None:
         """
         Train the model using the provided training data
         and optionally validate using validation data.
@@ -132,78 +141,60 @@ class Sequential(Model):
         Args:
             X (DataFrame): Training features data.
             epochs (int): Number of epochs to train the model.
-            val_df (DataFrame, optional): Validation features data
-                to evaluate the model during training.
+            val_split (float, optional): Fraction of the training
+                data to be used for validation. Defaults to None.
+            val_data (DataFrame, optional): Validation features data.
+                Defaults to None.
             callbacks (list of objects, optional): List of callback
                 objects to monitor and possibly interrupt training.
+            batch_size (int, optional): Number of samples per batch.
+                Defaults to 32.
+            verbose (bool, optional): Whether to print training
+                progress. Defaults to False.
 
         Raises:
             ValueError: If input data types are incorrect.
         """
-        if not isinstance(X, DataFrame):
-            raise ValueError("X should be a pandas DataFrame.")
-        if not isinstance(epochs, int) or epochs <= 0:
-            raise ValueError("Epochs should be a positive integer.")
-        if val_df is not None and not isinstance(val_df, DataFrame):
-            raise ValueError(
-                "val_df should be a pandas DataFrame if provided.")
-        if callbacks is not None and not isinstance(callbacks, list):
-            raise ValueError(
-                "callbacks should be a list of objects if provided.")
+        X_train, y_train = self.df_to_numpy(X)
 
-        # Convert DataFrame to numpy arrays
-        X_train = X.values
-        if 'diagnosis' not in X.columns:
-            raise ValueError("The target column is missing.")
-        y_train = X['diagnosis'].values
+        self.init_callbacks(callbacks=callbacks)
 
         for epoch in range(epochs):
-            # Forward pass
-            output = self.call(X_train)
+            if self.stop_training:
+                break
 
-            # Compute training losses (assuming self.losses is defined)
-            loss_value = self.loss(y_train, output)
+            losses = []
+            metrics = []
+            for X, y in self.iter_batches(X_train, y_train, batch_size):
+                loss_value, accuracy = self.train_batch(X, y)
+                losses.append(loss_value)
+                metrics.append(accuracy)
 
-            # Compute gradient of the losses
-            loss_gradient = self.loss_gradient(y_train, output)
+            self.losses['training'].append(np.mean(losses))
+            self.metrics['training'].append(np.mean(metrics))
 
-            # Backward pass and parameter update using optimizers
-            params = [layer.get_params() for layer in self._layers]
-            grads = self.backward(loss_gradient,
-                                  learning_rate=self.optimizer.learning_rate)
+            logs = {
+                'loss': np.mean(losses),
+                'accuracy': np.mean(metrics),
+            }
 
-            # Convert grads to list if it is a numpy array
-            if isinstance(grads, np.ndarray):
-                grads = [grad.tolist() for grad in grads]
-            params = self.optimizer.update(params, grads)
+            print(f"Epoch {epoch + 1}/{epochs}, "
+                  f"Training Accuracy: {np.mean(metrics):.3f}, "
+                  f"Training Loss: {np.mean(losses):.3f} -- ", end='')
 
-            # Update model parameters
-            for layer, updated_params in zip(self._layers, params):
-                layer.set_params(updated_params)
+            if val_data is not None:
+                val_loss, val_accuracy = self.test_validation_data(val_data)
+                logs['val_loss'] = val_loss
+                logs['val_accuracy'] = val_accuracy
 
-            # Validation if validation data is provided
-            if val_df is not None:
-                X_val = val_df.values
-                if 'diagnosis' not in val_df.columns:
-                    raise ValueError("The target column is missing.")
-                y_val = val_df['diagnosis'].values
-                val_output = self.call(X_val)
-                val_loss = self.loss(y_val, val_output)
-                print(
-                    f'Epoch {epoch + 1}/{epochs}, Validation Loss: {val_loss}')
+                print(f"Validation Accuracy: {val_accuracy:.3f}, "
+                      f"Validation Loss: {val_loss:.3f}")
 
-            print(f'Epoch {epoch + 1}/{epochs}, Training Loss: {loss_value}')
+            for callback in callbacks:
+                callback.on_epoch_end(epoch, logs=logs)
 
-            #TODO apply callbacks
-            # if callbacks and val_df is not None:
-            #     for callback in callbacks:
-            #         callback.on_epoch_end(
-            #             epoch,
-            #             logs={
-            #                 'losses': loss_value,
-            #                 'val_loss': (val_loss
-            #                              if val_df is not None else None)
-            #             })
+        for callback in callbacks:
+            callback.on_train_end()
 
     def predict(self, X: DataFrame) -> np.ndarray:
         """
@@ -222,39 +213,48 @@ class Sequential(Model):
             raise ValueError("X should be a pandas DataFrame.")
 
         # Convert DataFrame to a numpy array for compatibility with the model
-        X_pred = X.values
+        X_pred, _ = self.df_to_numpy(X)
 
         # Perform forward pass through the model
         predictions = self.call(X_pred)
 
         return predictions
 
-    def loss_gradient(self, y: np.ndarray, output: np.ndarray) -> np.ndarray:
+    def evaluate(self, X: DataFrame) -> tuple[float, float]:
         """
-        Compute the gradient of the losses function
-        with respect to the output.
+        Evaluate the model using the provided data.
 
         Args:
-            y (np.ndarray): True labels or target values.
-            output (np.ndarray): Predicted output from the model.
+            X (DataFrame): Input features data.
+            y (np.ndarray): Target labels data.
 
         Returns:
-            np.ndarray: Gradient of the losses function
-                with respect to the output.
-
-        Raises:
-            ValueError: If input data shapes do not match.
+            tuple: Tuple of losses and accuracy.
         """
-        return self.loss.gradient(y, output)
+        X_eval, y_eval = self.df_to_numpy(X)
+        output = self.call(X_eval)
+        loss_value = self.loss(y_eval, output)
+
+        predictions = (output >= 0.5).astype(int)
+        accuracy = np.mean(predictions == y_eval)
+
+        print(f"Accuracy: {accuracy:.3f}, Loss: {loss_value:.3f}")
+
+        return loss_value, float(accuracy)
 
     def summary(self) -> None:
         """
         Print a summary of the model architecture.
         """
         for i, layer in enumerate(self._layers):
-            print(
-                f"Layer {i + 1}: {layer.__class__.__name__}, "
-                f"Output Shape: {layer.output_shape}")
+            output_shape = layer.output_shape
+            parameters = layer.count_parameters()
+            print(f"Layer {i + 1} {layer.__class__.__name__}: "
+                  f"Trainable: {layer.trainable}, "
+                  f"Output Shape: {output_shape}, "
+                  f"Parameters: {parameters}",
+                  sep=' ', end='\n'
+                  )
 
         print(f"Total Parameters: {self.count_parameters()}")
 
@@ -271,53 +271,117 @@ class Sequential(Model):
 
         return total_params
 
-    # def save_model(self, filepath: str) -> None:
-    #     """
-    #     Save the model architecture and trained weights to HDF5 format.
-    #
-    #     Args:
-    #         filepath (str): Filepath where the model will be saved.
-    #     """
-    #     with h5py.File(filepath, 'w') as f:
-    #         # Save model configuration
-    #         f.attrs['model_config'] = json.dumps(self.model_config)
-    #
-    #         # Save model weights
-    #         for i, layer in enumerate(self.layers):
-    #             g = f.create_group(f'layer_{i}')
-    #             layer.save_weights(g)
+    # <-- Epoch Methods -->
+    @staticmethod
+    def iter_batches(X: np.ndarray, y: np.ndarray, batch_size: int):
+        """
+        Iterate over mini-batches of the dataset.
 
-    # @classmethod
-    # def load_model(cls, filepath: str) -> 'Sequential':
-    #     """
-    #     Load a model from HDF5 format.
-    #
-    #     Args:
-    #         filepath (str): Filepath from which to load the model.
-    #
-    #     Returns:
-    #         Sequential: Loaded Sequential model instance.
-    #     """
-    #     with h5py.File(filepath, 'r') as f:
-    #         model_config = json.loads(f.attrs['model_config'])
-    #
-    #         # Initialize an empty Sequential model
-    #         model = Sequential()
-    #
-    #         # Add layers based on model configuration
-    #         for layer_config in model_config['layers']:
-    #             layer_class = getattr(layers_module, layer_config['class_name'])
-    #             layer = layer_class.from_config(layer_config)
-    #             model.add(layer)
-    #
-    #         # Restore model losses and optimizers
-    #         loss_class = getattr(losses_module, model_config['losses'])
-    #         optimizer_class = getattr(optimizers_module, model_config['optimizers'])
-    #         model.compile(losses=loss_class(), optimizers=optimizer_class())
-    #
-    #         # Load weights for each layer
-    #         for i, layer in enumerate(model.layers):
-    #             if hasattr(layer, 'load_weights'):
-    #                 layer.load_weights(f[f'layer_{i}'])
-    #
-    #     return model
+        Args:
+            X (np.ndarray): Input features data.
+            y (np.ndarray): Target labels data.
+            batch_size (int): Number of samples per batch.
+
+        Yields:
+            Tuple[np.ndarray, np.ndarray]: Mini-batches of
+                input features and target labels.
+        """
+        for i in range(0, X.shape[0], batch_size):
+            X_batch = X[i:i + batch_size]
+            y_batch = y[i:i + batch_size]
+
+            yield X_batch, y_batch
+
+    def train_batch(self, X_batch: np.ndarray, y_batch: np.ndarray):
+        """
+        Train the model on a single batch of data.
+
+        Args:
+            X_batch (np.ndarray): Input features data.
+            y_batch (np.ndarray): Target labels data.
+        """
+        output = self.call(X_batch)
+        loss_value = self.loss(y_batch, output)
+        loss_gradients = self.loss.gradient(y_batch, output)
+
+        for layer in reversed(self._layers):
+            loss_gradients = layer.backward(loss_gradients,
+                                            self.optimizer.learning_rate)
+
+        predictions = (output >= 0.5).astype(int)
+        accuracy = np.mean(predictions == y_batch)
+
+        return loss_value, accuracy
+
+    def test_validation_data(self, val_data: DataFrame):
+        """
+        Test the model on the validation data.
+        """
+        X_val, y_val = self.df_to_numpy(val_data)
+        val_output = self.call(X_val)
+        val_loss = self.loss(y_val, val_output)
+
+        val_predictions = (val_output >= 0.5).astype(int)
+        val_accuracy = np.mean(val_predictions == y_val)
+        self.losses['validation'].append(val_loss)
+        self.metrics['validation'].append(val_accuracy)
+
+        return val_loss, val_accuracy
+
+    # <-- Getters and Setters -->
+    def get_weights(self) -> list:
+        """
+        Get the weights of the model.
+
+        Returns:
+            list: List of weights for each layer.
+        """
+        weights = []
+        for layer in self._layers:
+            weights.append(layer.get_weights())
+
+        return weights
+
+    def set_weights(self, weights: list) -> None:
+        """
+        Set the weights of the model.
+
+        Args:
+            weights (list): List of weights for each layer.
+        """
+        for layer, (w, b) in zip(self._layers, weights):
+            layer.set_weights(weights=w, bias=b)
+
+    # <-- Callbacks -->
+    def init_callbacks(self, callbacks: list[Callback]) -> None:
+        """
+        Initialize the callbacks.
+
+        Args:
+            callbacks (list of objects): List of callback objects.
+        """
+        if callbacks is None:
+            callbacks = []
+        for callback in callbacks:
+            callback.set_model(self)
+            callback.on_train_begin()
+
+        self.callbacks = callbacks
+
+    # <-- DataFrame to Numpy Array -->
+    @staticmethod
+    def df_to_numpy(X: DataFrame) -> tuple[np.ndarray, np.ndarray]:
+        """
+        Prepare the data for training.
+
+        Args:
+            X (DataFrame): Input features data.
+
+        Returns:
+            np.ndarray: Numpy array of input features.
+        """
+        X_feature = X.values[:, 1:]
+        if 'diagnosis' not in X.columns:
+            raise ValueError("The target column is missing.")
+        y_target = X['diagnosis'].values.reshape(-1, 1)
+        return X_feature, y_target

@@ -1,183 +1,190 @@
 import argparse
 import os
+import pickle
 
 import pandas as pd
+from pandas import DataFrame
+
+from sklearn.preprocessing import StandardScaler
 
 from src.utils.logger import Logger
 from src.utils.config import Config
-from src.utils.decorators import error_handler
-
+from src.dataset_handler.data_preprocessing import DataPreprocessor
+from src.model.callbacks.early_stopping import EarlyStopping
 from src.data_plotter.plotter import Plotter
-from src.dataset_handler.data_splitter import DataSplitter
 from src.model.model.sequential import Sequential
 from src.model.layers.input import InputLayer
 from src.model.layers.dense import Dense
+from src.model.layers.dropout import Dropout
 from src.model.losses.binary_cross_entropy import BinaryCrossEntropy
 from src.model.optimizers.adam import AdamOptimizer
 
-logger = Logger("mlp")()
-config = Config()
 
+class MultiLayerPerceptron:
+    def __init__(self, dataset_path: str):
+        self.config = Config()
+        self.logger = Logger("mlp")()
+        self.scaler = StandardScaler()
+        self.data_processor = DataPreprocessor(scaler=self.scaler)
+        # CSV Paths
+        self.dataset_path = dataset_path
+        self.labeled_csv_path = None
+        self.train_data = None
+        self.val_data = None
+        # Model
+        self.model = None
 
-@error_handler(handle_exceptions=(FileNotFoundError, Exception))
-def get_csv_file_with_labels(filename: str) -> str:
-    """
-    Add column labels to the CSV file. Specifically, to csv
-    files from Wisconsin Breast Cancer dataset.
+    def create_labeled_csv(self) -> None:
+        base_features = self.config.wdbc_labels['base_features']
+        patient_id = self.config.wdbc_labels['id']
+        diagnosis = self.config.wdbc_labels['diagnosis']
 
-    Args:
-        filename: str: Path to the CSV file
+        # Define new column names
+        mean_radius = ['mean_' + feature for feature in base_features]
+        radius_se = [feature + '_se' for feature in base_features]
+        worst_radius = ['worst_' + feature for feature in base_features]
 
-    Returns:
-        str: Path to the new CSV file with column labels
+        # Read the CSV file
+        data = pd.read_csv(self.dataset_path)
 
-    Raises:
-        FileNotFoundError: If the file is not found
-        Exception: If any other error occurs
-    """
-    # Define base column names
-    base_features = config.wdbc_labels['base_features']
-    patient_id = config.wdbc_labels['id']
-    diagnosis = config.wdbc_labels['diagnosis']
+        # Add the new column names to the dataframe
+        data.columns = (
+                [patient_id, diagnosis]
+                + mean_radius
+                + radius_se
+                + worst_radius
+        )
 
-    # Define new column names
-    mean_radius = ['mean_' + feature for feature in base_features]
-    radius_se = [feature + '_se' for feature in base_features]
-    worst_radius = ['worst_' + feature for feature in base_features]
+        # Save the updated dataframe to a new CSV file
+        output_filename = os.path.join(
+            os.path.dirname(self.dataset_path),
+            os.path.basename(self.dataset_path).replace(
+                '.csv',
+                '_with_labels.csv'))
+        data.to_csv(output_filename, index=False)
 
-    # Read the CSV file
-    data = pd.read_csv(filename)
+        self.labeled_csv_path = output_filename
 
-    # Add the new column names to the dataframe
-    data.columns = (
-            [patient_id, diagnosis]
-            + mean_radius
-            + radius_se
-            + worst_radius
-    )
-
-    # Save the updated dataframe to a new CSV file
-    output_filename = os.path.join(
-        os.path.dirname(filename),
-        os.path.basename(filename).replace('.csv', '_with_labels.csv'))
-    data.to_csv(output_filename, index=False)
-
-    return output_filename
-
-
-@error_handler(handle_exceptions=(FileNotFoundError, ValueError))
-def plot_data(plotter: Plotter) -> None:
-    """
-    Plot the data from the CSV file with column labels.
-
-    Args:
-        data_file: str: Path to the CSV file with column labels
-        plotter: Plotter: An instance of the Plotter class
-    """
-    plotter.data_distribution(column=config.wdbc_labels['diagnosis'])
-
-    plotter.correlation_heatmap(exclude_columns=[
-        config.wdbc_labels['id'],
-        config.wdbc_labels['diagnosis']
-    ])
-
-    plotter.pairplot(
-        columns=(
-                [config.wdbc_labels['diagnosis']]
-                + ['mean_' + feature
-                   for feature in config.wdbc_labels['base_features']]
-        ),
-        hue=config.wdbc_labels['diagnosis']
-    )
-
-    plotter.boxplots(
-        columns=(
-            ['mean_' + feature
-             for feature in config.wdbc_labels['base_features']]
-        ),
-        hue=config.wdbc_labels['diagnosis']
-    )
-
-
-@error_handler(handle_exceptions=(FileNotFoundError, Exception))
-def split_data(data_splitter: DataSplitter) -> tuple:
-    """
-    Split the data into training and validation sets.
-
-    Args:
-        data_splitter: DataSplitter: An instance of
-            the DataSplitter class
-
-    Returns:
-        tuple: Training and validation dataframes
-    """
-    data_splitter.split()
-
-    train_path = os.path.join(config.csv_directory, 'train.csv')
-    val_path = os.path.join(config.csv_directory, 'val.csv')
-
-    data_splitter.train_df.to_csv(train_path, index=False)
-    data_splitter.test_df.to_csv(val_path, index=False)
-
-    return data_splitter.train_df, data_splitter.test_df
-
-
-def create_model(model: Sequential, input_shape: tuple = (500, 30)):
-    model.add(InputLayer(input_shape=input_shape))
-    # Hidden layers
-    model.add(Dense(units=32, activation='relu', kernel_initializer='glorot_uniform'))
-    model.add(Dense(units=64, activation='tanh', kernel_initializer='glorot_uniform'))
-    model.add(Dense(units=32, activation='relu', kernel_initializer='glorot_uniform'))
-
-    # Output layer
-    model.add(Dense(units=1, activation='sigmoid'))
-
-    model.compile(optimizer=AdamOptimizer(), loss=BinaryCrossEntropy())
-
-
-def main(data_file: str = None):
-    if data_file is None:
-        args = argparse.ArgumentParser()
-        args.add_argument('--dataset', type=str, required=True,
-                          help="Path to the dataset CSV file")
-        parsed_args = args.parse_args()
-        data_file = parsed_args.dataset
-
-    if os.path.exists(data_file) and data_file.endswith('.csv'):
-        df = get_csv_file_with_labels(data_file)
-
-        # Create Plotter instance
+    def plot_data(self) -> None:
         plotter = Plotter(
-            data=pd.read_csv(df),
-            save_dir=config.plot_dir
+            data=pd.read_csv(self.labeled_csv_path),
+            save_dir=self.config.plot_dir
         )
-        # plot_data(plotter)
 
-        # Create DataSplitter instance
-        data_splitter = DataSplitter(
-            dataset=pd.read_csv(df),
-            split_ratio=0.2,
-            seed=42
+        plotter.data_distribution(column=self.config.wdbc_labels['diagnosis'])
+
+        plotter.correlation_heatmap(exclude_columns=[
+            self.config.wdbc_labels['id'],
+            self.config.wdbc_labels['diagnosis']
+        ])
+
+        plotter.pairplot(
+            columns=(
+                    [self.config.wdbc_labels['diagnosis']]
+                    + ['mean_' + feature
+                       for feature in self.config.wdbc_labels['base_features']]
+            ),
+            hue=self.config.wdbc_labels['diagnosis']
         )
-        train_df, val_df = split_data(data_splitter=data_splitter)
 
+        plotter.boxplots(
+            columns=(
+                ['mean_' + feature
+                 for feature in self.config.wdbc_labels['base_features']]
+            ),
+            hue=self.config.wdbc_labels['diagnosis']
+        )
+
+    def preprocess_data(self):
+        train_df, val_df = self.data_processor.dataset_from_csv(
+            csv=self.labeled_csv_path,
+            label_col=self.config.wdbc_labels['diagnosis'],
+            seed=69,
+            subset='both',
+            drop_columns=[self.config.wdbc_labels['id']],
+            val_split=0.2
+        )
+
+        train_df.to_csv(os.path.join(self.config.csv_directory,
+                                     'train.csv'), index=False)
+        val_df.to_csv(os.path.join(self.config.csv_directory,
+                                   'val.csv'), index=False)
+
+        self.train_data = train_df
+        self.val_data = val_df
+
+    def build_model(self):
         model = Sequential()
-        create_model(model=model, input_shape=train_df.shape)
+
+        # Input layer
+        model.add(InputLayer(input_shape=self.train_data
+                             .values[:, 1:].shape[1:]))
+
+        # Hidden layers
+        model.add(Dense(units=32, activation='relu',
+                        kernel_initializer='glorot_uniform'))
+        model.add(Dropout(rate=0.2))
+        model.add(Dense(units=64, activation='relu',
+                        kernel_initializer='glorot_uniform'))
+        model.add(Dropout(rate=0.2))
+        model.add(Dense(units=32, activation='relu',
+                        kernel_initializer='glorot_uniform'))
+        model.add(Dropout(rate=0.5))
+
+        # Output layer
+        model.add(Dense(units=1, activation='sigmoid'))
+
+        model.compile(
+            optimizer=AdamOptimizer(),
+            losses=BinaryCrossEntropy(),
+        )
+
+        self.model = model
+
         print(model.summary())
 
-        model.fit(X=data_splitter.train_df, epochs=100, val_df=data_splitter.test_df)
+    def train_model(self):
+        self.model.fit(
+            X=self.train_data,
+            epochs=100,
+            val_data=self.val_data,
+            callbacks=[EarlyStopping(
+                monitor='val_loss',
+                patience=20,
+                verbose=False
+            )],
+            batch_size=32,
+            verbose=True
+        )
 
-        #TODO: Implement the following:
-        # Train Model
-        # Evaluate Model
-        # Save Model
-        # Predict Test Data
+    def evaluate_model(self):
+        self.model.evaluate(self.val_data)
 
-    else:
-        logger.error(f"Invalid Data File: {data_file}")
+    def save_model(self):
+        model_json = {"model": self.model, "scaler": self.scaler}
+        with open(f"{self.config.model_dir}/model.pkl", 'wb') as f:
+            pickle.dump(model_json, f)
+
+    def load_model(self):
+        with open(f"{self.config.model_dir}/model.pkl", 'rb') as f:
+            model_json = pickle.load(f)
+        self.model = model_json["model"]
+        self.scaler = model_json["scaler"]
+
+    def run(self):
+        self.create_labeled_csv()
+        # self.plot_data()
+        self.preprocess_data()
+        self.build_model()
+        self.train_model()
+        self.evaluate_model()
+        self.save_model()
+        self.load_model()
+        self.evaluate_model()
 
 
 if __name__ == '__main__':
     dataset = 'data/csv/data.csv'
-    main(dataset)
+    mlp = MultiLayerPerceptron(dataset_path=dataset)
+    mlp.run()
 

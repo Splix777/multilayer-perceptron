@@ -95,47 +95,6 @@ class InputLayer(Layer):
 
         return self._output_shape
 
-    @property
-    def config(self) -> dict[str, tuple[int, ...]]:
-        """
-        Get the configuration of the layer.
-
-        Returns:
-            dict: Configuration dictionary of the layer.
-        """
-        return {'input_shape': self.input_shape, 'trainable': self.trainable}
-
-    def set_params(self, **params: dict[str, object]) -> None:
-        """
-        Set the parameters of the layer.
-        InputLayer has no trainable parameters, so it does nothing.
-
-        Args:
-            **params: Keyword arguments representing layer parameters.
-        """
-        if 'input_shape' in params:
-            self.input_shape = params['input_shape']
-
-    def save_weights(self, filepath: str) -> None:
-        """
-        Save the weights of the layer to a file.
-        InputLayer has no weight to save, so it does nothing.
-
-        Args:
-            filepath (str): Filepath where the weights will be saved.
-        """
-        pass
-
-    def load_weights(self, filepath: str) -> None:
-        """
-        Load the weights of the layer from a file.
-        InputLayer has no weight to load, so it does nothing.
-
-        Args:
-            filepath (str): Filepath from which the weights will be loaded.
-        """
-        pass
-
     def count_parameters(self) -> int:
         """
         Count the total number of parameters in the layer.
@@ -146,18 +105,23 @@ class InputLayer(Layer):
         """
         return 0
 
-    def update_weights(self, dW: np.ndarray, db: np.ndarray):
-        # The Input layer has no weights to update
-        pass
-
     def get_weights(self) -> tuple[np.ndarray, np.ndarray]:
-        # The Input layer has no weights
+        """
+        Get the weights of the layer.
+        InputLayer has no weights, so it returns an empty tuple.
+
+        Returns:
+            tuple: Empty tuple.
+        """
         return np.array([]), np.array([])
 
-    def set_weights(self, weights: tuple[np.ndarray, np.ndarray]):
-        # The Input layer has no weights to set
-        pass
+    def set_weights(self, weights: np.ndarray, bias: np.ndarray) -> None:
+        """
+        Set the weights and biases of the layer.
+        InputLayer has no weights, so it does nothing.
 
-    def initialize_parameters(self):
-        # No parameters to initialize for input layer
+        Args:
+            weights (np.ndarray): Weights of the layer.
+            bias (np.ndarray): Bias of the layer.
+        """
         pass

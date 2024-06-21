@@ -4,7 +4,7 @@ from pandas import DataFrame
 class Model(ABC):
     def __init__(self):
         self._layers = []
-        self.loss = None
+        self.losses = None
         self.optimizer = None
 
     def add(self, layer):

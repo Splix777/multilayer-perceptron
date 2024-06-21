@@ -20,6 +20,7 @@ class Layer(ABC):
 
         self.built = False
         self.weights = None
+        self.bias = None
         self._output_shape = None
 
     def __str__(self) -> str:
@@ -32,6 +33,22 @@ class Layer(ABC):
 
     def __len__(self) -> int:
         return self.count_parameters()
+
+    def __call__(self, inputs: np.ndarray) -> np.ndarray:
+        """
+        Perform the forward pass.
+
+        Args:
+            inputs (np.ndarray): Input data or features.
+
+        Returns:
+            np.ndarray: Output of the layer.
+        """
+        if not self.built:
+            self.build(input_shape=inputs.shape)
+            self.built = True
+
+        return self.call(inputs)
 
     @abstractmethod
     def build(self, input_shape: tuple[int, ...]) -> tuple[int, ...]:
@@ -84,47 +101,6 @@ class Layer(ABC):
         """
         pass
 
-    @property
-    @abstractmethod
-    def config(self) -> dict[str, any]:
-        """
-        Get the configuration of the layer.
-
-        Returns:
-            dict[str, any]: Configuration dictionary of the layer.
-        """
-        pass
-
-    @abstractmethod
-    def set_params(self, **params):
-        """
-        Set the parameters of the layer.
-
-        Args:
-            **params: Keyword arguments representing layer parameters.
-        """
-        pass
-
-    @abstractmethod
-    def save_weights(self, filepath: str):
-        """
-        Save the weights of the layer to a file.
-
-        Args:
-            filepath (str): Filepath where the weights will be saved.
-        """
-        pass
-
-    @abstractmethod
-    def load_weights(self, filepath: str):
-        """
-        Load the weights of the layer from a file.
-
-        Args:
-            filepath (str): Filepath from which the weights will be loaded.
-        """
-        pass
-
     @abstractmethod
     def count_parameters(self) -> int:
         """
@@ -136,84 +112,33 @@ class Layer(ABC):
         return 0
 
     @abstractmethod
-    def update_weights(self, dW: np.ndarray, db: np.ndarray):
-        """
-        Update the weights of the layer.
-
-        Args:
-            dW (np.ndarray): Gradient of the loss with respect to the weights.
-            db (np.ndarray): Gradient of the loss with respect to the bias.
-        """
-        pass
-
-    @abstractmethod
     def get_weights(self) -> tuple[np.ndarray, np.ndarray]:
         """
-        Get the weights of the layer.
+        Get the weights and biases of the layer.
 
         Returns:
-            tuple[np.ndarray, np.ndarray]: Weights and bias of the layer.
+            tuple[np.ndarray, np.ndarray]: Weights and biases of the layer.
         """
-        pass
+        return self.weights, self.bias
 
     @abstractmethod
-    def set_weights(self, weights: tuple[np.ndarray, np.ndarray]):
+    def set_weights(self, weights: np.ndarray, bias: np.ndarray) -> None:
         """
-        Set the weights of the layer.
+        Set the weights and biases of the layer.
 
         Args:
-            weights (tuple[np.ndarray, np.ndarray]):
-                Weights and bias of the layer.
-        """
-        pass
+            weights (np.ndarray): Weights of the layer.
+            bias (np.ndarray): Bias of the layer.
 
-    @abstractmethod
-    def initialize_parameters(self):
         """
-        Initialize the parameters of the layer. Should be called in build().
-        """
-        pass
-
-    def summary(self) -> str:
-        """
-        Return a summary of the layer, including name,
-        output shape, and number of parameters.
-        """
-        return (f"Layer(name={self.__class__.__name__},"
-                f"output_shape={self.output_shape},"
-                f"parameters={self.count_parameters()})")
-
-    def serialize(self) -> str:
-        """
-        Serialize the layer configuration and
-        weights to a JSON string.
-        """
-        config = self.config
-        weights, biases = self.get_weights()
-        serialized_data = {
-            "config": config,
-            "weights": [w.tolist() for w in weights],
-            "biases": [b.tolist() for b in biases]
-        }
-        return json.dumps(serialized_data)
-
-    def deserialize(self, data: str):
-        """
-        Deserialize the layer configuration and
-        weights from a JSON string.
-        """
-        serialized_data = json.loads(data)
-        self.set_params(**serialized_data['config'])
-        weights = np.array(serialized_data['weights'])
-        biases = np.array(serialized_data['biases'])
-        self.set_weights((weights, biases))
+        self.weights = weights
+        self.bias = bias
 
     @property
     def built(self) -> bool:
         return self._built
 
+
     @built.setter
     def built(self, value: bool):
         self._built = value
-
-

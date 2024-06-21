@@ -106,16 +106,23 @@ class Dense(Layer):
         self.input = inputs
 
         if inputs.shape[-1] != self.weights.shape[0]:
-            raise ValueError("Dimensions mismatch: inputs and weights are not compatible.")
+            print(f"Inputs shape: {inputs.shape}")
+            print(f"Weights shape: {self.weights.shape}")
+            raise ValueError("Dimensions mismatch: "
+                             "inputs and weights are not compatible.")
 
         z = np.dot(inputs, self.weights) + self.bias
 
+        # Efficient computation due to its simple form (max(0, z)).
         if self.activation == 'relu':
             self.activation_output = np.maximum(0, z)
+        # Outputs are in the range [0, 1].
         elif self.activation == 'sigmoid':
             self.activation_output = 1 / (1 + np.exp(-z))
+        # Outputs are zero-centered, making optimization potentially easier.
         elif self.activation == 'tanh':
             self.activation_output = np.tanh(z)
+        # Outputs in the range [0, 1] and sum to 1. (multiclass classification)
         elif self.activation == 'softmax':
             exps = np.exp(z - np.max(z, axis=-1, keepdims=True))
             self.activation_output = exps / np.sum(exps, axis=-1,
@@ -175,54 +182,6 @@ class Dense(Layer):
         """
         return self._output_shape
 
-    @property
-    def config(self) -> dict[str, any]:
-        """
-        Get the configuration of the Dense layer.
-
-        Returns:
-            dict: Configuration dictionary of the layer.
-        """
-        return {
-            'units': self.units,
-            'activation': self.activation,
-            'kernel_initializer': self.kernel_initializer
-        }
-
-    def set_params(self, **params: dict[str, any]) -> None:
-        """
-        Set the parameters of the Dense layer.
-
-        Args:
-            **params: Keyword arguments representing layer parameters.
-        """
-        if 'units' in params:
-            self.units = params['units']
-        if 'activation' in params:
-            self.activation = params['activation']
-        if 'kernel_initializer' in params:
-            self.kernel_initializer = params['kernel_initializer']
-
-    def save_weights(self, filepath: str) -> None:
-        """
-        Save the weights of the Dense layer to a file.
-
-        Args:
-            filepath (str): Filepath where the weights will be saved.
-        """
-        np.savez(filepath, weights=self.weights, bias=self.bias)
-
-    def load_weights(self, filepath: str) -> None:
-        """
-        Load the weights of the Dense layer from a file.
-
-        Args:
-            filepath (str): Filepath from which the weights will be loaded.
-        """
-        data = np.load(filepath)
-        self.weights = data['weights']
-        self.bias = data['bias']
-
     def count_parameters(self) -> int:
         """
         Count the total number of parameters in the Dense layer.
@@ -232,40 +191,22 @@ class Dense(Layer):
         """
         return np.prod(self.weights.shape) + np.prod(self.bias.shape)
 
-    def update_weights(self, dW: np.ndarray, db: np.ndarray) -> None:
-        """
-        Update the weights of the Dense layer.
-
-        Args:
-            dW (np.ndarray): Gradient of the loss with respect to the weights.
-            db (np.ndarray): Gradient of the loss with respect to the bias.
-        """
-        self.weights -= dW
-        self.bias -= db
-
     def get_weights(self) -> tuple[np.ndarray, np.ndarray]:
         """
-        Get the weights of the Dense layer.
+        Get the weights and biases of the Dense layer.
 
         Returns:
             tuple: Weights and biases of the layer.
         """
         return self.weights, self.bias
 
-    def set_weights(self, weights: tuple[np.ndarray, np.ndarray]) -> None:
+    def set_weights(self, weights: np.ndarray, bias: np.ndarray) -> None:
         """
-        Set the weights of the Dense layer.
+        Set the weights and biases of the Dense layer.
 
         Args:
-            weights (tuple): Weights and biases of the layer.
+            weights (np.ndarray): Weights of the layer.
+            bias (np.ndarray): Biases of the layer.
         """
-        self.weights, self.bias = weights
-
-    def initialize_parameters(self):
-        """
-        Initialize the parameters of the Dense layer.
-        """
-        self.weights = (np.random.randn(self.input_shape[-1], self.units)
-                        * np.sqrt(2.0 / (self.input_shape[-1] + self.units)))
-
-        self.bias = np.zeros((1, self.units))
+        self.weights = weights
+        self.bias = bias
