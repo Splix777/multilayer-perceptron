@@ -44,10 +44,9 @@ class Sequential(Model):
         self.built = False
 
         if not self._layers:
-            if not isinstance(layer, InputLayer):
-                if layer.input_shape is None:
-                    raise ValueError(
-                        "The first layer should specify the input shape.")
+            if not isinstance(layer, InputLayer) and layer.input_shape is None:
+                raise ValueError(
+                    "The first layer should specify the input shape.")
 
             self._layers = []
 
@@ -59,7 +58,7 @@ class Sequential(Model):
 
         self.built = True
 
-    def compile(self, losses: Loss, optimizer: Optimizer) -> None:
+    def compile(self, loss: Loss, optimizer: Optimizer) -> None:
         """
         Configure the model for training.
 
@@ -73,11 +72,11 @@ class Sequential(Model):
         TypeError: If losses is not callable or optimizers
             is not an instance of a valid optimizers class.
         """
-        if not callable(losses):
+        if not callable(loss):
             raise TypeError("The losses function must be callable.")
         if not hasattr(optimizer, 'update'):
             raise TypeError("The optimizers must have an 'update' method.")
-        self.loss = losses
+        self.loss = loss
         self.optimizer = optimizer
 
     def call(self, inputs: np.ndarray | list) -> np.ndarray | list:
@@ -215,10 +214,7 @@ class Sequential(Model):
         # Convert DataFrame to a numpy array for compatibility with the model
         X_pred, _ = self.df_to_numpy(X)
 
-        # Perform forward pass through the model
-        predictions = self.call(X_pred)
-
-        return predictions
+        return self.call(X_pred)
 
     def evaluate(self, X: DataFrame) -> tuple[float, float]:
         """
@@ -265,11 +261,7 @@ class Sequential(Model):
         Returns:
             int: Total number of parameters.
         """
-        total_params = 0
-        for layer in self._layers:
-            total_params += layer.count_parameters()
-
-        return total_params
+        return sum(layer.count_parameters() for layer in self._layers)
 
     # <-- Epoch Methods -->
     @staticmethod
@@ -336,11 +328,7 @@ class Sequential(Model):
         Returns:
             list: List of weights for each layer.
         """
-        weights = []
-        for layer in self._layers:
-            weights.append(layer.get_weights())
-
-        return weights
+        return [layer.get_weights() for layer in self._layers]
 
     def set_weights(self, weights: list) -> None:
         """

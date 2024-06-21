@@ -3,7 +3,6 @@ import os
 import pickle
 
 import pandas as pd
-from pandas import DataFrame
 
 from sklearn.preprocessing import StandardScaler
 
@@ -136,7 +135,7 @@ class MultiLayerPerceptron:
 
         model.compile(
             optimizer=AdamOptimizer(),
-            losses=BinaryCrossEntropy(),
+            loss=BinaryCrossEntropy(),
         )
 
         self.model = model
@@ -179,6 +178,7 @@ class MultiLayerPerceptron:
         self.train_model()
         self.evaluate_model()
         self.save_model()
+
         self.load_model()
         self.evaluate_model()
 
