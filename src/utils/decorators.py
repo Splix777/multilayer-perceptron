@@ -11,6 +11,7 @@ KNOWN_EXCEPTIONS = [
     KeyError,
     FileNotFoundError,
     RuntimeError,
+    AttributeError,
 ]
 
 

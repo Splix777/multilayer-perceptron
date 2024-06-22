@@ -1,7 +1,8 @@
-
 import numpy as np
+import pandas as pd
 
 from pandas import DataFrame
+from sklearn.model_selection import train_test_split
 
 from .model import Model
 from ..layers.layer import Layer
@@ -65,7 +66,7 @@ class Sequential(Model):
         Args:
         losses (Callable): A losses function that measures
             the model's performance.
-        optimizers (Optimizer): An optimizers that updates the
+        optimizers (Optimizer): An optimizers that update the
             model's weights to minimize the losses.
 
         Raises:
@@ -154,7 +155,15 @@ class Sequential(Model):
         Raises:
             ValueError: If input data types are incorrect.
         """
-        X_train, y_train = self.df_to_numpy(X)
+        self._validate_inputs(X, epochs, val_split, val_data,
+                              callbacks, batch_size, verbose)
+
+        if val_data is None:
+            X_train, val_data = train_test_split(X, test_size=val_split)
+        else:
+            X_train = X
+
+        X_train, y_train = self.df_to_numpy(X_train)
 
         self.init_callbacks(callbacks=callbacks)
 
@@ -177,17 +186,16 @@ class Sequential(Model):
                 'accuracy': np.mean(metrics),
             }
 
-            print(f"Epoch {epoch + 1}/{epochs}, "
-                  f"Training Accuracy: {np.mean(metrics):.3f}, "
-                  f"Training Loss: {np.mean(losses):.3f} -- ", end='')
+            val_loss, val_accuracy = self.test_validation_data(val_data)
+            logs['val_loss'] = val_loss
+            logs['val_accuracy'] = val_accuracy
 
-            if val_data is not None:
-                val_loss, val_accuracy = self.test_validation_data(val_data)
-                logs['val_loss'] = val_loss
-                logs['val_accuracy'] = val_accuracy
-
-                print(f"Validation Accuracy: {val_accuracy:.3f}, "
-                      f"Validation Loss: {val_loss:.3f}")
+            if verbose:
+                print(f"Epoch {epoch + 1}/{epochs}, "
+                      f"Accuracy: {logs['accuracy']:.3f}, "
+                      f"Loss: {logs['loss']:.3f}, "
+                      f"Val Accuracy: {logs['val_accuracy']:.3f}, "
+                      f"Val Loss: {logs['val_loss']:.3f}")
 
             for callback in callbacks:
                 callback.on_epoch_end(epoch, logs=logs)
@@ -195,7 +203,7 @@ class Sequential(Model):
         for callback in callbacks:
             callback.on_train_end()
 
-    def predict(self, X: DataFrame) -> np.ndarray:
+    def predict(self, X: DataFrame | pd.Series) -> np.ndarray:
         """
         Make predictions using the trained model.
 
@@ -206,12 +214,15 @@ class Sequential(Model):
             np.ndarray: Predicted output from the model.
 
         Raises:
-            ValueError: If input data type is incorrect.
+            ValueError: If an input data type is incorrect.
         """
-        if not isinstance(X, DataFrame):
-            raise ValueError("X should be a pandas DataFrame.")
+        if not isinstance(X, DataFrame) and not isinstance(X, pd.Series):
+            raise ValueError("X should be a pandas DataFrame or Series.")
 
         # Convert DataFrame to a numpy array for compatibility with the model
+        if isinstance(X, pd.Series):
+            X = pd.DataFrame(X).T
+
         X_pred, _ = self.df_to_numpy(X)
 
         return self.call(X_pred)
@@ -222,7 +233,6 @@ class Sequential(Model):
 
         Args:
             X (DataFrame): Input features data.
-            y (np.ndarray): Target labels data.
 
         Returns:
             tuple: Tuple of losses and accuracy.
@@ -373,3 +383,34 @@ class Sequential(Model):
             raise ValueError("The target column is missing.")
         y_target = X['diagnosis'].values.reshape(-1, 1)
         return X_feature, y_target
+
+    @staticmethod
+    def _validate_inputs(X: DataFrame, epochs: int, val_split: float,
+                         val_data: DataFrame, callbacks: list[Callback],
+                         batch_size: int, verbose: bool) -> None:
+        """
+        Validate inputs for the fit method.
+
+        Raises:
+            ValueError: If input data types or values are incorrect.
+        """
+        if not isinstance(X, DataFrame):
+            raise ValueError("X should be a pandas DataFrame.")
+        if val_data is not None and not isinstance(val_data, DataFrame):
+            raise ValueError("val_data should be a pandas DataFrame.")
+        if val_data is None and val_split is None:
+            raise ValueError("You must provide either val_split or val_data.")
+        if val_data is None and not (0 < val_split < 1):
+            raise ValueError("val_split should be a float between 0 and 1.")
+        if not isinstance(epochs, int) or epochs < 1:
+            raise ValueError("Number of epochs should be a positive integer.")
+        if not isinstance(batch_size, int) or batch_size < 1:
+            raise ValueError("Batch size should be a positive integer.")
+        if callbacks is not None:
+            if not isinstance(callbacks, list):
+                raise ValueError("Callbacks must be a list callback objects.")
+            for callback in callbacks:
+                if not isinstance(callback, Callback):
+                    raise ValueError("Callbacks must be instance of Callback.")
+        if not isinstance(verbose, bool):
+            raise ValueError("Verbose should be a boolean value.")

@@ -116,12 +116,12 @@ class Dense(Layer):
         # Efficient computation due to its simple form (max(0, z)).
         if self.activation == 'relu':
             self.activation_output = np.maximum(0, z)
-        # Outputs are in the range [0, 1].
-        elif self.activation == 'sigmoid':
-            self.activation_output = 1 / (1 + np.exp(-z))
         # Outputs are zero-centered, making optimization potentially easier.
         elif self.activation == 'tanh':
             self.activation_output = np.tanh(z)
+        # Outputs are in the range [0, 1].
+        elif self.activation == 'sigmoid':
+            self.activation_output = 1 / (1 + np.exp(-z))
         # Outputs in the range [0, 1] and sum to 1. (multiclass classification)
         elif self.activation == 'softmax':
             exps = np.exp(z - np.max(z, axis=-1, keepdims=True))

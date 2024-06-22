@@ -3,26 +3,30 @@ from sklearn.model_selection import train_test_split
 from sklearn.preprocessing import LabelEncoder
 from sklearn.preprocessing import StandardScaler
 
+from ..utils.logger import Logger
+from ..utils.decorators import error_handler
+
 
 class DataPreprocessor:
-    def __init__(self, scaler: StandardScaler = None):
+    def __init__(self, scaler: StandardScaler):
         """
-        Initialize the DataLoader with the given batch
-        size and validation split ratio.
+        Initialize the DataLoader with the given scaler.
 
         Args:
-            batch_size (int): Number of samples per batch.
-            val_split (float): Proportion of the data
-                to use for validation.
+            scaler (StandardScaler): Scaler to standardize
+                the features.
         """
-        self.labels = None
-        self.val_split = None
+        self.label_mapping = None
         self.label_encoder = LabelEncoder()
         self.scaler = scaler
+        self.logger = Logger("data_preprocessor")()
 
-    def dataset_from_csv(self, csv: str, label_col: str, label_mode: str = 'int',
-                         shuffle: bool = True, seed: int = 42, subset: str = 'both',
-                         drop_columns: list[str] = None, val_split: float = 0.2):
+    @error_handler(handle_exceptions=(FileNotFoundError, ValueError, KeyError))
+    def dataset_from_csv(self, csv: str, label_col: str,
+                         label_mode: str = 'int', shuffle: bool = True,
+                         seed: int = 42, subset: str = 'both',
+                         drop_columns: list[str] = None,
+                         val_split: float = 0.2) -> tuple[pd.DataFrame, ...]:
         """
         Load a dataset from a CSV file, preprocess labels,
         and split it into training and validation sets.
@@ -42,31 +46,64 @@ class DataPreprocessor:
             val_split (float): Proportion of the data
                 to use for validation. Default is 0.2.
 
-
         Returns:
             tuple: (train_df, val_df) if subset is 'both',
                    train_df if subset is 'train',
                    val_df if subset is 'validation'.
-        """
-        # Load the CSV file into a DataFrame
-        df = pd.read_csv(csv)
-        self.labels = label_col
 
-        # Drop specified columns if provided
+        Raises:
+            FileNotFoundError: If the CSV file is not found.
+            ValueError: If subset is not one
+                of 'both', 'train', or 'validation'.
+            KeyError: If the label column is not found.
+        """
+        if not 0 < val_split < 1:
+            raise ValueError("val_split must be between 0 and 1.")
+
+        df = pd.read_csv(csv)
+        if df.empty:
+            raise ValueError("The CSV file is empty.")
+
+        if label_col not in df.columns:
+            raise KeyError(
+                f"The label column '{label_col}' "
+                f"is not found in the DataFrame.")
+
         if drop_columns:
+            if missing_cols := [
+                col for col in drop_columns if col not in df.columns
+            ]:
+                raise KeyError(
+                    f"The following columns to drop are "
+                    f"not in the DataFrame: {missing_cols}")
             df = df.drop(columns=drop_columns)
 
-        # Encode labels if label_mode is 'int' or 'categorical'
-        if label_mode == 'int':
-            df[label_col] = self.label_encoder.fit_transform(df[label_col])
-        elif label_mode == 'categorical':
+        if df[label_col].isnull().any():
+            raise ValueError(
+                f"The label column '{label_col}' contains NaN values.")
+
+        if label_mode not in ['int', 'categorical']:
+            raise ValueError(
+                "label_mode must be either 'int' or 'categorical'.")
+
+        encoded_labels, original_labels = None, None
+
+        if label_mode == 'categorical':
             df[label_col] = pd.Categorical(df[label_col])
             df[label_col] = df[label_col].cat.codes
+            original_labels = df[label_col].astype('category').cat.categories
+            encoded_labels = df[label_col].astype(
+                'category').cat.codes.unique()
 
-        # Standardize the features
-        df = self.fit_transform(df)
+        elif label_mode == 'int':
+            df[label_col] = self.label_encoder.fit_transform(df[label_col])
+            original_labels = self.label_encoder.classes_
+            encoded_labels = self.label_encoder.transform(original_labels)
 
-        # Split the data into training and validation sets
+        self.label_mapping = dict(zip(original_labels, encoded_labels))
+
+        df = self.fit_transform(df, label_col)
+
         if subset == 'both':
             train_df, val_df = train_test_split(
                 df,
@@ -95,44 +132,47 @@ class DataPreprocessor:
             raise ValueError("subset must be one of "
                              "'both', 'train', or 'validation'")
 
-    def fit_transform(self, df: pd.DataFrame):
+    def fit_transform(self, df: pd.DataFrame, label_col: str) -> pd.DataFrame:
         """
         Fit and transform the DataFrame.
 
         Args:
             df (pd.DataFrame): DataFrame to fit and transform.
+            label_col (str): Column name of the labels (target column).
 
         Returns:
             pd.DataFrame: Transformed DataFrame.
         """
-        feature_df = df.drop(columns=[self.labels])
+        feature_df = df.drop(columns=[label_col])
         df[feature_df.columns] = self.scaler.fit_transform(feature_df)
         return df
 
-    def transform(self, df: pd.DataFrame):
+    def transform(self, df: pd.DataFrame, label_col: str) -> pd.DataFrame:
         """
         Transform the DataFrame.
 
         Args:
             df (pd.DataFrame): DataFrame to transform.
+            label_col (str): Column name of the labels (target column).
 
         Returns:
             pd.DataFrame: Transformed DataFrame.
         """
-        feature_df = df.drop(columns=[self.labels])
+        feature_df = df.drop(columns=[label_col])
         df[feature_df.columns] = self.scaler.transform(feature_df)
         return df
 
-    def inverse_transform(self, df: pd.DataFrame):
+    def inv_transform(self, df: pd.DataFrame, label_col: str) -> pd.DataFrame:
         """
         Inverse transforms the DataFrame.
 
         Args:
             df (pd.DataFrame): DataFrame to inverse transform.
+            label_col (str): Column name of the labels (target column).
 
         Returns:
             pd.DataFrame: Inverse transformed DataFrame.
         """
-        feature_df = df.drop(columns=[self.labels])
+        feature_df = df.drop(columns=[label_col])
         df[feature_df.columns] = self.scaler.inverse_transform(feature_df)
         return df
