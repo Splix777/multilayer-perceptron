@@ -37,7 +37,10 @@ class BinaryCrossEntropy(Loss):
             float: Binary cross-entropy losses value.
         """
         if y_true.shape != y_pred.shape:
-            raise ValueError("Shapes of y_true and y_pred must match.")
+            if y_true.shape[0] == y_pred.shape[0]:
+                y_true = y_true.reshape(-1, 1)
+            else:
+                raise ValueError("Shapes of y_true and y_pred must match.")
 
         # Clip values to avoid log(0) and log(1) issues
         epsilon = 1e-15
@@ -67,7 +70,10 @@ class BinaryCrossEntropy(Loss):
                 losses with respect to y_pred.
         """
         if y_true.shape != y_pred.shape:
-            raise ValueError("Shapes of y_true and y_pred must match.")
+            if y_true.shape[0] == y_pred.shape[0]:
+                y_true = y_true.reshape(-1, 1)
+            else:
+                raise ValueError("Shapes of y_true and y_pred must match.")
 
         # Clip values to avoid division by zero
         epsilon = 1e-15

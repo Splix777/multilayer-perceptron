@@ -1,26 +1,35 @@
+import random
+
 import numpy as np
-from .layer import Layer
+# from .layer import Layer
+# from ..activations.relu import ReLU
+# from ..activations.sigmoid import Sigmoid
+# from ..activations.tanh import Tanh
+# from ..activations.softmax import Softmax
+
+from src.model.layers.layer import Layer
+from src.model.activations.relu import ReLU
+from src.model.activations.sigmoid import Sigmoid
+from src.model.activations.tanh import Tanh
+from src.model.activations.softmax import Softmax
+from src.model.optimizers.adam import AdamOptimizer
 
 
 class Dense(Layer):
     def __init__(self,
                  units: int,
                  activation: str = None,
-                 use_bias: bool = True,
                  kernel_initializer: str = 'glorot_uniform',
                  bias_initializer: str = 'zeros',
-
                  **kwargs):
         """
         Initialize a Dense layer with the given number
-        of units and activation function.
+        of units and activations function.
 
         Args:
             units (int): Number of neurons in the layer.
             activation (str, optional): Activation function
                 to use. Defaults to None.
-            use_bias (bool, optional): Whether to use bias or not.
-                Defaults to True.
             kernel_initializer (str, optional): Initialization
                 strategy for kernel weights. Defaults to
                 'glorot_uniform'.
@@ -33,29 +42,26 @@ class Dense(Layer):
             **kwargs: Additional keyword arguments.
         """
         super().__init__(**kwargs)
+        self.bias_gradient = None
+        self.weights_gradient = None
         self.units = units
-        self.activation = activation
-        self.use_bias = use_bias
         self.kernel_initializer = kernel_initializer
         self.bias_initializer = bias_initializer
+        self.optimizer = None
         self.activation_output = None
         self.input = None
         self.weights = None
         self.bias = None
+        self.activation_function = {
+            'relu': ReLU(),
+            'tanh': Tanh(),
+            'sigmoid': Sigmoid(),
+            'softmax': Softmax()}.get(activation)
 
-    def build(self, input_shape: tuple[int, ...]) -> tuple[int, ...]:
-        """
-        Build the Dense layer with the given input
-        shape and initialize weights.
-
-        Args:
-            input_shape (tuple): Shape of the input
-                tensor (batch_size, input_dim).
-
-        Returns:
-            tuple: Shape of the output tensor (batch_size, units).
-        """
+    def initialize_weights(self, input_shape: tuple[int, ...]) -> None:
+        # Number of Features
         fan_in = input_shape[-1]
+        # Number of Neurons
         fan_out = self.units
 
         if self.kernel_initializer == 'glorot_uniform':
@@ -74,19 +80,33 @@ class Dense(Layer):
             raise ValueError(f"Unknown kernel initializer: "
                              f"{self.kernel_initializer}")
 
-        if self.use_bias:
-            if self.bias_initializer == 'zeros':
-                self.bias = np.zeros((1, self.units))
-            elif self.bias_initializer == 'ones':
-                self.bias = np.ones((1, self.units))
-            elif self.bias_initializer == 'random_normal':
-                self.bias = np.random.randn(1, self.units)
-            elif self.bias_initializer == 'random_uniform':
-                self.bias = np.random.rand(1, self.units)
-            else:
-                raise ValueError(f"Unknown bias initializer: "
-                                 f"{self.bias_initializer}")
+    def initialize_bias(self) -> None:
+        if self.bias_initializer == 'zeros':
+            self.bias = np.zeros((1, self.units))
+        elif self.bias_initializer == 'ones':
+            self.bias = np.ones((1, self.units))
+        elif self.bias_initializer == 'random_normal':
+            self.bias = np.random.randn(1, self.units)
+        elif self.bias_initializer == 'random_uniform':
+            self.bias = np.random.rand(1, self.units)
+        else:
+            raise ValueError(f"Unknown bias initializer: "
+                             f"{self.bias_initializer}")
 
+    def build(self, input_shape: tuple[int, ...]) -> tuple[int, ...]:
+        """
+        Build the Dense layer with the given input
+        shape and initialize weights.
+
+        Args:
+            input_shape (tuple): Shape of the input
+                tensor (batch_size, input_dim).
+
+        Returns:
+            tuple: Shape of the output tensor (batch_size, units).
+        """
+        self.initialize_weights(input_shape)
+        self.initialize_bias()
         self._output_shape = (input_shape[0], self.units)
         self.built = True
 
@@ -104,6 +124,7 @@ class Dense(Layer):
             np.ndarray: Output tensor of shape (batch_size, units).
         """
         self.input = inputs
+        # print(f'Input Shape: {inputs.shape}')
 
         if inputs.shape[-1] != self.weights.shape[0]:
             print(f"Inputs shape: {inputs.shape}")
@@ -113,61 +134,27 @@ class Dense(Layer):
 
         z = np.dot(inputs, self.weights) + self.bias
 
-        # Efficient computation due to its simple form (max(0, z)).
-        if self.activation == 'relu':
-            self.activation_output = np.maximum(0, z)
-        # Outputs are zero-centered, making optimization potentially easier.
-        elif self.activation == 'tanh':
-            self.activation_output = np.tanh(z)
-        # Outputs are in the range [0, 1].
-        elif self.activation == 'sigmoid':
-            self.activation_output = 1 / (1 + np.exp(-z))
-        # Outputs in the range [0, 1] and sum to 1. (multiclass classification)
-        elif self.activation == 'softmax':
-            exps = np.exp(z - np.max(z, axis=-1, keepdims=True))
-            self.activation_output = exps / np.sum(exps, axis=-1,
-                                                   keepdims=True)
+        if self.activation_function:
+            self.activation_output = self.activation_function(z)
         else:
-            self.activation_output = z
+            raise ValueError("Activation function not found.")
 
         return self.activation_output
 
-    def backward(self, output_gradient: np.ndarray,
-                 learning_rate: float) -> np.ndarray:
-        """
-        Perform backpropagation through the Dense layer.
+    def backward(self, loss_gradients: np.ndarray) -> np.ndarray:
+        if not self.activation_function:
+            raise ValueError("Activation function not found.")
 
-        Args:
-            output_gradient (np.ndarray): Gradient of the loss
-                with respect to the output of this layer.
-            learning_rate (float): Learning rate for
-                gradient descent optimization.
+        activation_gradients = self.activation_function.gradient(self.activation_output)
+        loss_gradients = loss_gradients * activation_gradients
 
-        Returns:
-            np.ndarray: Gradient of the loss with
-                respect to the input of this layer.
-        """
-        if self.activation == 'relu':
-            activation_gradient = output_gradient * (
-                        self.activation_output > 0)
-        elif self.activation == 'sigmoid':
-            activation_gradient = output_gradient * self.activation_output * (
-                        1 - self.activation_output)
-        elif self.activation == 'tanh':
-            activation_gradient = output_gradient * (
-                        1 - np.square(self.activation_output))
-        else:
-            activation_gradient = output_gradient
+        self.weights_gradient = np.dot(self.input.T, loss_gradients)
+        self.bias_gradient = np.sum(loss_gradients, axis=0, keepdims=True)
 
-        input_gradient = np.dot(activation_gradient, self.weights.T)
-        weights_gradient = np.dot(self.input.T, activation_gradient)
-        bias_gradient = np.sum(activation_gradient, axis=0)
+        return np.dot(loss_gradients, self.weights.T)
 
-        # Update weights and bias
-        self.weights -= learning_rate * weights_gradient
-        self.bias -= learning_rate * bias_gradient
 
-        return input_gradient
+
 
     @property
     def output_shape(self) -> tuple[int, ...]:
@@ -210,3 +197,18 @@ class Dense(Layer):
         """
         self.weights = weights
         self.bias = bias
+
+
+if __name__ == "__main__":
+    dense = Dense(units=2, activation='softmax')
+    print(dense.build(input_shape=(30, 64)))
+    weights, bias = dense.get_weights()
+    print(dense.output_shape)
+
+    sample = [random.uniform(-1, 1) for _ in range(64)]
+    previous_output = np.array([sample])
+
+    output = dense.call(previous_output)
+
+    print(f"Output shape: {output.shape}")
+    print(f"Output: {output}")

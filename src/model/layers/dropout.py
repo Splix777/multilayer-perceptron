@@ -45,21 +45,8 @@ class Dropout(Layer):
             return inputs * self.mask / (1 - self.rate)
         return inputs
 
-    def backward(self, output_gradient: np.ndarray,
-                 learning_rate: float) -> np.ndarray:
-        """
-        Perform the backward pass.
-
-        Args:
-            output_gradient (np.ndarray): Gradient of the loss
-                with respect to the output of the layer.
-            learning_rate (float): A float value that determines
-                how much the model weights are updated.
-
-        Returns:
-            np.ndarray: Gradient of the loss with respect to the input.
-        """
-        return output_gradient * self.mask / (1 - self.rate)
+    def backward(self, loss_gradients: np.ndarray) -> np.ndarray:
+        return loss_gradients * self.mask / (1 - self.rate)
 
     @property
     def output_shape(self) -> tuple[int, ...]:

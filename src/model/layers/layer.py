@@ -22,6 +22,8 @@ class Layer(ABC):
         self.weights = None
         self.bias = None
         self._output_shape = None
+        self.weights_gradient = None
+        self.bias_gradient = None
 
     def __str__(self) -> str:
         return (f"{self.__class__.__name__}(trainable={self.trainable}, "
@@ -77,17 +79,7 @@ class Layer(ABC):
         pass
 
     @abstractmethod
-    def backward(self, output_gradient: np.ndarray, learning_rate: float) -> np.ndarray:
-        """
-        Perform the backward pass.
-
-        Args:
-            output_gradient (np.ndarray): Gradient of the losses with respect to the output.
-            learning_rate (float): Learning rate used for gradient descent optimization.
-
-        Returns:
-            np.ndarray: Gradient of the losses with respect to the input of the layer.
-        """
+    def backward(self, loss_gradients: np.ndarray) -> np.ndarray:
         pass
 
     @property
@@ -137,7 +129,6 @@ class Layer(ABC):
     @property
     def built(self) -> bool:
         return self._built
-
 
     @built.setter
     def built(self, value: bool):

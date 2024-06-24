@@ -1,4 +1,5 @@
 import argparse
+import json
 import os
 import pickle
 
@@ -19,26 +20,40 @@ from src.model.layers.input import InputLayer
 from src.model.layers.dense import Dense
 from src.model.layers.dropout import Dropout
 from src.model.losses.binary_cross_entropy import BinaryCrossEntropy
+from src.model.losses.categorical_cross_entropy import CategoricalCrossEntropy
 from src.model.optimizers.adam import AdamOptimizer
 
 
 class MultiLayerPerceptron:
-    def __init__(self, dataset_path: str):
+    def __init__(self):
         self.config = Config()
         self.logger = Logger("mlp")()
-        self.scaler = StandardScaler()
-        self.data_processor = DataPreprocessor(scaler=self.scaler)
-        # CSV Paths
-        self.dataset_path = dataset_path
-        self.labeled_csv_path = None
-        self.train_data = None
-        self.val_data = None
-        # Model
-        self.model = None
-        self.target_binary_labels = None
+        self.data_processor = DataPreprocessor()
 
     @error_handler(handle_exceptions=(FileNotFoundError, ValueError, KeyError))
-    def create_labeled_csv(self, dataset_path: str) -> DataFrame:
+    def train_model(self, dataset_path: str, config_path: str = None):
+        data = self._create_labeled_csv(dataset_path=dataset_path)
+        # self._plot_data(data=data)
+        train_df, val_df, scaler, labels = self._preprocess_data(data=data)
+        model_config = self._load_model_config(config_path=config_path)
+        model = self._build_model(model_config=model_config)
+        trained_model = self._train_new_model(
+            model=model,
+            train_data=train_df,
+            val_data=val_df,
+            config=model_config
+        )
+        named_model = self._save_model(
+            model=trained_model,
+            scaler=scaler,
+            labels=labels,
+            config=model_config,
+            val_data=val_df
+        )
+
+        return f"Successfully trained model: {named_model}"
+
+    def _create_labeled_csv(self, dataset_path: str) -> DataFrame:
         """
         Create a new CSV file with labeled columns.
 
@@ -47,6 +62,8 @@ class MultiLayerPerceptron:
             ValueError: If the dataset path is empty, or
                 if the dataset is missing the required columns.
         """
+        data = pd.read_csv(dataset_path)
+
         base_features = self.config.wdbc_labels['base_features']
         patient_id = self.config.wdbc_labels['id']
         diagnosis = self.config.wdbc_labels['diagnosis']
@@ -56,9 +73,6 @@ class MultiLayerPerceptron:
         radius_se = [feature + '_se' for feature in base_features]
         worst_radius = ['worst_' + feature for feature in base_features]
 
-        # Read the CSV file
-        data = pd.read_csv(dataset_path)
-
         # Add the new column names to the dataframe
         data.columns = (
                 [patient_id, diagnosis]
@@ -67,22 +81,11 @@ class MultiLayerPerceptron:
                 + worst_radius
         )
 
-        # Save the updated dataframe to a new CSV file
-        output_filename = os.path.join(
-            os.path.dirname(dataset_path),
-            os.path.basename(dataset_path).replace(
-                '.csv',
-                '_with_labels.csv'))
-        data.to_csv(output_filename, index=False)
-
-        self.labeled_csv_path = output_filename
-
         return data
 
-    @error_handler(handle_exceptions=(FileNotFoundError, ValueError, KeyError))
-    def plot_data(self) -> None:
+    def _plot_data(self, data: pd.DataFrame) -> None:
         plotter = Plotter(
-            data=pd.read_csv(self.labeled_csv_path),
+            data=data,
             save_dir=self.config.plot_dir
         )
 
@@ -110,83 +113,150 @@ class MultiLayerPerceptron:
             hue=self.config.wdbc_labels['diagnosis']
         )
 
-    @error_handler(handle_exceptions=(FileNotFoundError, ValueError, KeyError))
-    def preprocess_train_data(self):
-        train_df, val_df = self.data_processor.dataset_from_csv(
-            csv=self.labeled_csv_path,
-            label_col=self.config.wdbc_labels['diagnosis'],
+    def _preprocess_data(self, data: pd.DataFrame,
+                         scaler: StandardScaler = None,
+                         label_col: str = None,
+                         drop_columns: list = None,
+                         val_split: float = 0.2
+                         ):
+        label_col = label_col or self.config.wdbc_labels['diagnosis']
+        drop_columns = drop_columns or [self.config.wdbc_labels['id']]
+
+        train_df, val_df, scaler, labels = self.data_processor.load_from_df(
+            df=data,
+            label_col=label_col,
+            shuffle=True,
             seed=69,
-            subset='both',
-            drop_columns=[self.config.wdbc_labels['id']],
-            val_split=0.2
+            drop_columns=drop_columns,
+            scaler=scaler,
+            val_split=val_split
         )
 
-        train_df.to_csv(os.path.join(self.config.csv_directory,
-                                     'train.csv'), index=False)
-        val_df.to_csv(os.path.join(self.config.csv_directory,
-                                   'val.csv'), index=False)
+        return train_df, val_df, scaler, labels
 
-        self.target_binary_labels = self.data_processor.label_mapping
-        self.train_data = train_df
-        self.val_data = val_df
+    def _load_model_config(self, config_path: str = None):
+        path = config_path or f"{self.config.model_dir}/softmax_model.json"
+        # path = config_path or f"{self.config.model_dir}/sigmoid_model.json"
 
-    def preprocess_predict_data(self, dataset_path: str) -> DataFrame:
-        data = self.create_labeled_csv(dataset_path)
-        data.drop(columns=[self.config.wdbc_labels['id']], inplace=True)
-        featured_columns = data.columns[1:]
-        data[featured_columns] = self.scaler.transform(data[featured_columns])
+        with open(path, 'r') as f:
+            config = json.load(f)
 
-        if self.target_binary_labels is None:
+        return config
+
+    @staticmethod
+    def _check_model_config(model_config: dict):
+        required_keys = ['optimizer', 'loss', 'layers']
+        for key in required_keys:
+            if key not in model_config:
+                raise KeyError(f"Missing required key: {key}")
+            
+        layers = model_config.get('layers', [])
+        if len(layers) < 2:
             raise ValueError(
-                "Label mapping is not loaded. Please load label "
-                "mapping before prediction.")
+                "Model must have at least an input and output layer.")
+        
+        for layer in layers:
+            layer_type = layer.get('type')
+            if layer_type not in ['input', 'dense', 'dropout']:
+                raise ValueError("Invalid layer type.")
+            
+            if layer_type == 'input' and 'input_shape' not in layer:
+                raise KeyError("Input layer must have an input shape.")
+                
+            if layer_type == 'dense':
+                if 'units' not in layer:
+                    raise KeyError("Dense layer must have units.")
+                if 'activation' not in layer:
+                    layer['activation'] = 'relu'
+                if 'kernel_initializer' not in layer:
+                    layer['kernel_initializer'] = 'glorot_uniform'
 
-        data['diagnosis'] = data['diagnosis'].map(self.target_binary_labels)
-        return data
+            if layer_type == 'dropout' and 'rate' not in layer:
+                raise KeyError("Dropout layer must have a rate.")
 
-    @error_handler(handle_exceptions=(ValueError, KeyError, AttributeError))
-    def build_model(self):
+        optimizer = model_config.get('optimizer')
+        if 'type' not in optimizer or 'learning_rate' not in optimizer:
+            raise KeyError("Optimizer must have a type.")
+        optimizer_type = optimizer.get('type')
+        if optimizer_type not in ['adam']:
+            raise ValueError("Invalid optimizer.")
+
+        loss = model_config.get('loss')
+        if loss not in ['binary_crossentropy', 'categorical_crossentropy']:
+            raise ValueError("Invalid loss function.")
+
+        return layers, optimizer_type, loss
+
+    def _build_model(self, model_config: dict):
+        layers, optimizer, loss = self._check_model_config(
+            model_config=model_config
+        )
+
         model = Sequential()
-
-        # Input layer
-        model.add(InputLayer(
-            input_shape=self.train_data.values[:, 1:].shape[1:])
-        )
-
-        # Hidden layers
-        model.add(Dense(units=32, activation='relu',
-                        kernel_initializer='he_uniform'))
-        model.add(Dropout(rate=0.2))
-        model.add(Dense(units=64, activation='tahn',
-                        kernel_initializer='glorot_uniform'))
-        model.add(Dropout(rate=0.5))
-
-        # Output layer
-        model.add(Dense(units=1, activation='sigmoid'))
-
+        for layer in layers:
+            layer_type = layer.get('type')
+            if layer_type == 'input':
+                model.add(InputLayer(
+                    input_shape=(layer.get('input_shape', 30),)
+                ))
+            elif layer_type == 'dense':
+                model.add(Dense(
+                    units=layer.get('units'),
+                    activation=layer.get('activation'),
+                    kernel_initializer=layer.get('kernel_initializer')
+                ))
+            elif layer_type == 'dropout':
+                model.add(Dropout(
+                    rate=layer.get('rate')
+                ))
         model.compile(
-            optimizer=AdamOptimizer(learning_rate=0.0001),
-            loss=BinaryCrossEntropy(),
+            optimizer=optimizer,
+            loss=loss
         )
-
-        self.model = model
 
         print(model.summary())
+        return model
 
-    @error_handler(handle_exceptions=(ValueError, KeyError, AttributeError))
-    def train_model(self):
-        self.model.fit(
-            X=self.train_data,
-            epochs=10_000,
-            val_data=self.val_data,
+    @staticmethod
+    def _train_new_model(model: Sequential,
+                         train_data: pd.DataFrame,
+                         val_data: pd.DataFrame,
+                         config: dict):
+        model.fit(
+            X=train_data,
+            epochs=config.get('epochs', 1_000),
+            val_data=val_data,
             callbacks=[EarlyStopping(
                 monitor='val_loss',
-                patience=200,
+                patience=15,
                 verbose=True
             )],
-            batch_size=32,
+            batch_size=config.get('batch_size', 32),
             verbose=True
         )
+
+        return model
+
+    def _save_model(self, model: Sequential,
+                    scaler: StandardScaler,
+                    labels: dict,
+                    config: dict,
+                    val_data: pd.DataFrame):
+        model_json = {
+            "model": model,
+            "scaler": scaler,
+            "labels": labels,
+            "config": config,
+            "val_data": val_data
+        }
+
+        model_name = config.get('model_name', 'model')
+        with open(f"{self.config.model_dir}/{model_name}.pkl", 'wb') as f:
+            pickle.dump(model_json, f)
+
+        return model_name
+
+
 
     def evaluate_model(self):
         self.model.evaluate(self.val_data)
@@ -233,15 +303,6 @@ class MultiLayerPerceptron:
         print(f"Predictions: {predictions}")
         print(f"Accuracy: {total_correct / len(predictions) * 100:.2f}%")
 
-    def save_model(self):
-        model_json = {
-            "model": self.model,
-            "scaler": self.scaler,
-            "labels": self.target_binary_labels,
-        }
-        with open(f"{self.config.model_dir}/model.pkl", 'wb') as f:
-            pickle.dump(model_json, f)
-
     def load_model(self):
         with open(f"{self.config.model_dir}/model.pkl", 'rb') as f:
             model_json = pickle.load(f)
@@ -250,20 +311,26 @@ class MultiLayerPerceptron:
         self.target_binary_labels = model_json["labels"]
 
     def run(self):
-        self.create_labeled_csv(self.dataset_path)
+        self._create_labeled_csv(self.dataset_path)
         # self.plot_data()
-        self.preprocess_train_data()
-        self.build_model()
-        self.train_model()
+        self._preprocess_data()
+        self._build_model()
+        self._train_model()
         self.evaluate_model()
-        self.save_model()
+        self._save_model()
 
         self.load_model()
         self.evaluate_model()
         self.predict('data/csv/data.csv')
 
+    def load_dataset(self, dataset_path: str):
+        if not os.path.exists(dataset_path):
+            raise FileNotFoundError(f"File not found: {dataset_path}")
+
+        self.dataset_path = dataset_path
+
 
 if __name__ == '__main__':
     dataset = 'data/csv/data.csv'
-    mlp = MultiLayerPerceptron(dataset_path=dataset)
-    mlp.run()
+    mlp = MultiLayerPerceptron()
+    mlp.train_model(dataset)

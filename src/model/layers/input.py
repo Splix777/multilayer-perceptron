@@ -1,5 +1,7 @@
 import numpy as np
-from .layer import Layer
+# from .layer import Layer
+
+from src.model.layers.layer import Layer
 
 
 class InputLayer(Layer):
@@ -29,8 +31,10 @@ class InputLayer(Layer):
         Raises:
             ValueError: If input_shape is not a tuple or is empty.
         """
-        if not isinstance(input_shape, tuple) or len(input_shape) == 0:
+        if not isinstance(input_shape, tuple) or not input_shape:
             raise ValueError("Input shape must be a non-empty tuple.")
+        if any(dim <= 0 for dim in input_shape):
+            raise ValueError("All dimensions must be positive integers.")
 
         self._output_shape = input_shape
         self.built = True
@@ -55,28 +59,11 @@ class InputLayer(Layer):
 
         return inputs
 
-    def backward(self, output_gradient: np.ndarray,
-                 learning_rate: float) -> np.ndarray:
-        """
-        Perform the backward pass.
-        For InputLayer, it simply returns the output_gradient.
-
-        Args:
-            output_gradient (np.ndarray): Gradient of the
-                losses with respect to the output.
-            learning_rate (float): Learning rate used for
-                gradient descent optimization.
-
-        Returns:
-            np.ndarray: Gradient of the losses with respect
-                to the input (same as output_gradient).
-        Raises:
-            ValueError: If the layer has not been built.
-        """
+    def backward(self, loss_gradients: np.ndarray) -> np.ndarray:
         if not self.built:
             raise ValueError("The layer has not been built yet.")
 
-        return output_gradient
+        return loss_gradients
 
     @property
     def output_shape(self) -> tuple[int, ...]:
@@ -108,7 +95,7 @@ class InputLayer(Layer):
     def get_weights(self) -> tuple[np.ndarray, np.ndarray]:
         """
         Get the weights of the layer.
-        InputLayer has no weights, so it returns an empty tuple.
+        InputLayer has no weight, so it returns an empty tuple.
 
         Returns:
             tuple: Empty tuple.
@@ -118,10 +105,17 @@ class InputLayer(Layer):
     def set_weights(self, weights: np.ndarray, bias: np.ndarray) -> None:
         """
         Set the weights and biases of the layer.
-        InputLayer has no weights, so it does nothing.
+        InputLayer has no weight, so it does nothing.
 
         Args:
             weights (np.ndarray): Weights of the layer.
             bias (np.ndarray): Bias of the layer.
         """
         pass
+
+
+if __name__ == "__main__":
+    input_layer = InputLayer(input_shape=(30,))
+    input_layer.build(input_shape=(30,))
+    print(input_layer.output_shape)
+

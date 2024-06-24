@@ -1,6 +1,7 @@
 from abc import ABC, abstractmethod
 from pandas import DataFrame
 
+
 class Model(ABC):
     def __init__(self):
         self._layers = []
@@ -34,7 +35,7 @@ class Model(ABC):
         pass
 
     @abstractmethod
-    def backward(self, loss_gradient, learning_rate):
+    def backward(self, loss_gradients: DataFrame):
         """
         Perform the backward pass through all layers.
         """

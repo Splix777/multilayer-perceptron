@@ -17,17 +17,7 @@ class Optimizer(ABC):
         self._init_kwargs = kwargs
 
     @abstractmethod
-    def update(self, params, grads):
-        """
-        Update the parameters based on the gradients.
-
-        Args:
-            params (list): List of parameters (e.g., weights, biases).
-            grads (list): List of gradients corresponding to parameters.
-
-        Returns:
-            list: Updated parameters after applying the optimization update rule.
-        """
+    def update(self, weights, biases, weights_gradient, bias_gradient):
         pass
 
     @abstractmethod
