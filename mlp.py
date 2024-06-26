@@ -1,9 +1,9 @@
 import json
+import os
 import pickle
 
 import numpy as np
 import pandas as pd
-from pandas import DataFrame
 
 from sklearn.preprocessing import StandardScaler
 
@@ -20,31 +20,66 @@ from src.model.layers.dropout import Dropout
 
 
 class MultiLayerPerceptron:
+    """
+    MultiLayerPerceptron class to train, evaluate,
+    and predict using a Sequential model.
+
+    Attributes:
+        config (Config): Configuration object.
+        logger (Logger): Logger object.
+        data_processor (DataPreprocessor): DataPreprocessor object.
+
+    Methods:
+        train_model: Train a new model using the given dataset
+            and model configuration.
+        _create_labeled_data: Create a new df with labeled columns.
+        _plot_data: Plot the data distribution, correlation heatmap,
+            pairplot, and boxplots.
+        _preprocess_data: Preprocess the data by
+            loading, shuffling, and scaling it.
+        _load_model_config: Load the model configuration
+            from the given path.
+        _check_model_config: Check the model configuration
+            for required keys and values.
+        _build_model: Build a new model using the given configuration.
+        _train_new_model: Train a new model using the given
+            data and configuration.
+        _plot_model_history: Plot the model training history.
+        _save_model: Save the trained model to a pickle file.
+        _load_model: Load a trained model from a pickle file.
+        evaluate_model: Evaluate a trained model using the given data.
+        predict: Predict the target labels using the given data.
+        _predictions_labels: Convert the model predictions
+            to target labels.
+    """
     def __init__(self):
         self.config = Config()
         self.logger = Logger("mlp")()
         self.data_processor = DataPreprocessor()
 
     @error_handler(handle_exceptions=(FileNotFoundError, ValueError, KeyError))
-    def train_model(self, dataset_path: str, config_path: str = None) -> str:
+    def train_model(self, dataset_path: str, config_path: str) -> str:
         """
-        Train a new model using the given dataset and model configuration.
+        Train a new model using the given dataset
+        and model configuration.
 
         Args:
             dataset_path (str): Path to the dataset CSV file.
-            config_path (str): Path to the model configuration JSON file.
+            config_path (str): Path to the model
+                configuration JSON file.
 
         Raises:
             FileNotFoundError: If the dataset path is invalid.
             ValueError: If the dataset path is empty, or
                 if the dataset is missing the required columns.
-            KeyError: If the model configuration is missing required keys.
+            KeyError: If the model configuration is
+                missing required keys.
 
         Returns:
             str: Success message with the name of the trained model.
         """
         self.logger.info("Training model...")
-        data = self._create_labeled_csv(dataset_path=dataset_path)
+        data = self._create_labeled_data(dataset_path=dataset_path)
         # self._plot_data(data=data)
         train_df, val_df, scaler, labels = self._preprocess_data(data=data)
         model_config = self._load_model_config(config_path=config_path)
@@ -65,7 +100,7 @@ class MultiLayerPerceptron:
 
         return f"Successfully trained model: {named_model}"
 
-    def _create_labeled_csv(self, dataset_path: str) -> DataFrame:
+    def _create_labeled_data(self, dataset_path: str) -> pd.DataFrame:
         """
         Create a new CSV file with labeled columns.
 
@@ -187,7 +222,7 @@ class MultiLayerPerceptron:
 
         return train_df, val_df, scaler, labels
 
-    def _load_model_config(self, config_path: str = None) -> dict:
+    def _load_model_config(self, config_path: str) -> dict:
         """
         Load the model configuration from the given path.
 
@@ -198,9 +233,6 @@ class MultiLayerPerceptron:
         Returns:
             dict: Model configuration.
         """
-        if not config_path:
-            config_path = f"{self.config.model_dir}/softmax_model.json"
-
         with open(config_path, 'r') as f:
             config = json.load(f)
 
@@ -226,7 +258,7 @@ class MultiLayerPerceptron:
             str: Optimizer type.
             str: Loss function.
         """
-        required_keys = ['optimizer', 'loss', 'layers']
+        required_keys = ['model_name', 'layers', 'optimizer', 'loss', 'epochs']
         for key in required_keys:
             if key not in model_config:
                 raise KeyError(f"Missing required key: {key}")
@@ -401,7 +433,7 @@ class MultiLayerPerceptron:
         Returns:
             str: Name of the saved model.
         """
-        model_json = {
+        pkl_model = {
             "model": model,
             "scaler": scaler,
             "labels": labels,
@@ -411,13 +443,28 @@ class MultiLayerPerceptron:
         model_name = config.get('model_name', 'model')
         model_path = f"{self.config.model_dir}/{model_name}.pkl"
         with open(model_path, 'wb') as f:
-            pickle.dump(model_json, f)
+            pickle.dump(pkl_model, f)
 
         self.logger.info(f"Saved model to:\n{model_path}")
 
         return model_name
 
     def _load_model(self, model_path: str):
+        """
+        Load a trained model from a pickle file.
+
+        Args:
+            model_path (str): Path to the trained model pickle file.
+
+        Returns:
+            Sequential: Model.
+            StandardScaler: Scaler.
+            dict: Labels.
+            dict: Model configuration.
+        """
+        if not os.path.exists(model_path):
+            raise FileNotFoundError(f"Model not found at: {model_path}")
+
         with open(model_path, 'rb') as f:
             pkl_model = pickle.load(f)
 
@@ -448,7 +495,7 @@ class MultiLayerPerceptron:
         model, scaler, labels, model_config = self._load_model(
             model_path=model_path
         )
-        data = self._create_labeled_csv(data_path)
+        data = self._create_labeled_data(data_path)
         processed_data, _, _, _ = self._preprocess_data(
             data=data,
             scaler=scaler,
@@ -479,7 +526,7 @@ class MultiLayerPerceptron:
         model, scaler, labels, model_config = self._load_model(
             model_path=model_path
         )
-        data = self._create_labeled_csv(data_path)
+        data = self._create_labeled_data(data_path)
         processed_data, _, _, _ = self._preprocess_data(
             data=data,
             scaler=scaler,
@@ -489,10 +536,14 @@ class MultiLayerPerceptron:
         )
 
         predictions = model.predict(X=processed_data)
+        labeled_predictions = self._predictions_labels(
+            predictions=predictions,
+            labels=labels
+        )
 
-        self.logger.info(f"Predictions: {predictions}")
+        self.logger.info(f"Predictions: {labeled_predictions}")
 
-        return self._predictions_labels(predictions=predictions, labels=labels)
+        return labeled_predictions
 
     @staticmethod
     def _predictions_labels(predictions: np.ndarray, labels: dict) -> list:
@@ -517,9 +568,12 @@ class MultiLayerPerceptron:
         return labeled_predictions
 
 
-if __name__ == '__main__':
-    dataset = 'data/csv/data.csv'
-    mpath = 'data/models/softmax_model.pkl'
-    mlp = MultiLayerPerceptron()
-    print(mlp.evaluate_model(mpath, dataset))
+if __name__ == "__main__":
+    dpath = "data/csv/data.csv"
+    mpath = "data/models/softmax_model.pkl"
+    conf_path = "data/models/sigmoid_model.json"
 
+    mlp = MultiLayerPerceptron()
+    # mlp.train_model(dataset_path=dpath, config_path=conf_path)
+    # mlp.evaluate_model(model_path=mpath, data_path=dpath)
+    # mlp.predict(model_path=mpath, data_path=dpath)

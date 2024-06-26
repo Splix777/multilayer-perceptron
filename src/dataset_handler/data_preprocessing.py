@@ -2,13 +2,28 @@ import pandas as pd
 
 from sklearn.model_selection import train_test_split
 from sklearn.preprocessing import LabelEncoder, StandardScaler
-from sklearn.preprocessing import StandardScaler
 
-from ..utils.logger import Logger
-from ..utils.decorators import error_handler
+from src.utils.logger import Logger
+from src.utils.decorators import error_handler
 
 
 class DataPreprocessor:
+    """
+    DataPreprocessor class to preprocess the data
+    before training the model.
+
+    Attributes:
+        label_encoder (LabelEncoder): Encoder for the labels.
+        logger (Logger): Logger to log messages.
+
+    Methods:
+        load_from_df: Load a dataset from a CSV file,
+            preprocess labels, and split it into training
+            and validation sets.
+        fit_transform: Fit and transform the DataFrame.
+        transform: Transform the DataFrame.
+        inv_transform: Inverse transforms the DataFrame.
+    """
     def __init__(self):
         """
         Initialize the DataLoader with the given scaler.
@@ -16,7 +31,7 @@ class DataPreprocessor:
         self.label_encoder = LabelEncoder()
         self.logger = Logger("data_preprocessor")()
 
-    @error_handler(handle_exceptions=(FileNotFoundError, ValueError, KeyError))
+    @error_handler(handle_exceptions=(ValueError, KeyError))
     def load_from_df(self, df: pd.DataFrame,
                      label_col: str,
                      shuffle: bool = True,
@@ -65,7 +80,7 @@ class DataPreprocessor:
         else:
             df = self.transform(df, label_col, scaler)
 
-        if val_split is None or val_split == 0:
+        if val_split == 0:
             return df, None, scaler, labels
 
         train_df, val_df = train_test_split(
@@ -93,8 +108,9 @@ class DataPreprocessor:
         Returns:
             pd.DataFrame: Transformed DataFrame.
         """
-        feature_df = df.drop(columns=[label_col])
-        df[feature_df.columns] = scaler.fit_transform(feature_df)
+        features = df.drop(columns=[label_col]).values
+        transformed_features = scaler.fit_transform(features)
+        df.loc[:, df.columns != label_col] = transformed_features
         return df
 
     @staticmethod
@@ -111,8 +127,9 @@ class DataPreprocessor:
         Returns:
             pd.DataFrame: Transformed DataFrame.
         """
-        feature_df = df.drop(columns=[label_col])
-        df[feature_df.columns] = scaler.transform(feature_df)
+        features = df.drop(columns=[label_col]).values
+        transformed_features = scaler.transform(features)
+        df.loc[:, df.columns != label_col] = transformed_features
         return df
 
     @staticmethod
@@ -129,6 +146,7 @@ class DataPreprocessor:
         Returns:
             pd.DataFrame: Inverse transformed DataFrame.
         """
-        feature_df = df.drop(columns=[label_col])
-        df[feature_df.columns] = scaler.inverse_transform(feature_df)
+        features = df.drop(columns=[label_col]).values
+        inverse_transformed_features = scaler.inverse_transform(features)
+        df.loc[:, df.columns != label_col] = inverse_transformed_features
         return df

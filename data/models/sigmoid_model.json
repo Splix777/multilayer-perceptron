@@ -1,0 +1,52 @@
+{
+  "model_name": "sigmoid_model",
+  "layers" : [
+    {
+      "type": "input",
+      "input_shape": 30
+    },
+    {
+      "type": "dense",
+      "units": 32,
+      "activation": "prelu",
+      "kernel_initializer": "he_normal"
+    },
+    {
+      "type": "dropout",
+      "rate": 0.2
+    },
+    {
+      "type": "dense",
+      "units": 64,
+      "activation": "tanh",
+      "kernel_initializer": "glorot_uniform"
+    },
+    {
+      "type": "dropout",
+      "rate": 0.2
+    },
+    {
+      "type": "dense",
+      "units": 32,
+      "activation": "prelu",
+      "kernel_initializer": "he_normal"
+    },
+    {
+      "type": "dropout",
+      "rate": 0.2
+    },
+    {
+      "type": "dense",
+      "units": 1,
+      "activation": "sigmoid",
+      "kernel_initializer": "glorot_uniform"
+    }
+  ],
+    "optimizer": {
+        "type": "adam",
+        "learning_rate": 0.0001
+    },
+    "loss": "binary_crossentropy",
+    "batch_size": 32,
+    "epochs": 200
+}

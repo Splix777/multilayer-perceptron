@@ -4,6 +4,29 @@ import seaborn as sns
 
 
 class Plotter:
+    """
+    A class to generate and save plots for data visualization.
+
+    Attributes:
+        data (pd.DataFrame): The data to be visualized.
+        save_dir (str): The directory to save the plots.
+
+    Methods:
+        save_or_show: Save or show the plot based
+            on the save_dir attribute.
+        data_distribution: Plot the distribution
+            of a specified column in the data.
+        correlation_heatmap: Generate and display
+            a correlation heatmap for the data.
+        pairplot: Generate a pairplot for
+            selected columns in the data.
+        boxplots: Generate boxplots for selected
+            columns in the data.
+        plot_loss: Plot the training and validation loss
+            over epochs for a specified model.
+        plot_accuracy: Plot the training and validation
+            accuracy over epochs for a specified model.
+    """
     def __init__(self, data: pd.DataFrame, save_dir: str = None):
         self.data = data
         self.save_dir = save_dir
