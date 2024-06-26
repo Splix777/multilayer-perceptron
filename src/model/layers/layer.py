@@ -22,8 +22,8 @@ class Layer(ABC):
         self.weights = None
         self.bias = None
         self._output_shape = None
-        self.weights_gradient = None
-        self.bias_gradient = None
+        self.weights_gradients = None
+        self.bias_gradients = None
 
     def __str__(self) -> str:
         return (f"{self.__class__.__name__}(trainable={self.trainable}, "

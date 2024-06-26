@@ -22,16 +22,23 @@ class Config:
     plot_dir: Optional[Path] = field(init=False, default=None)
 
     def __post_init__(self):
+        """
+        Initialize the Config object by loading the configuration file.
+        """
         if self.config_path is None:
             self.config_path = Path(__file__).parent / '../../config.json'
         else:
             self.config_path = Path(self.config_path)
-        self.load_config()
 
-    def load_config(self) -> None:
         with open(self.config_path) as config_file:
             self.config = json.load(config_file)
 
+        self.load_config()
+
+    def load_config(self) -> None:
+        """
+        Set the attributes.
+        """
         self.project = self.config.get('project')
         self.settings = self.config.get('settings')
         self.paths = self.config.get('paths')
@@ -50,6 +57,7 @@ class Config:
         # Ensure the necessary directories exist
         self.output_dir.mkdir(parents=True, exist_ok=True)
         self.logs_dir.mkdir(parents=True, exist_ok=True)
+        self.csv_directory.mkdir(parents=True, exist_ok=True)
         self.model_dir.mkdir(parents=True, exist_ok=True)
         self.plot_dir.mkdir(parents=True, exist_ok=True)
 

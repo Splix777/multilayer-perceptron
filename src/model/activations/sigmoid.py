@@ -42,7 +42,7 @@ class Sigmoid(Activation):
         Returns:
             np.ndarray: Gradient array where elements are the derivatives of Sigmoid.
         """
-        return self.__call__(x) * (1 - self.__call__(x))
+        return x * (1 - x)
 
     def get_config(self) -> dict:
         """

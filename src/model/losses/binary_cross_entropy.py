@@ -44,7 +44,7 @@ class BinaryCrossEntropy(Loss):
 
         # Clip values to avoid log(0) and log(1) issues
         epsilon = 1e-15
-        y_pred = np.clip(y_pred, epsilon, 1 - epsilon)
+        y_pred = np.clip(y_pred, epsilon, 1.0 - epsilon)
 
         # Calculate binary cross-entropy losses
         loss = - np.mean(
@@ -77,7 +77,7 @@ class BinaryCrossEntropy(Loss):
 
         # Clip values to avoid division by zero
         epsilon = 1e-15
-        y_pred = np.clip(y_pred, epsilon, 1 - epsilon)
+        y_pred = np.clip(y_pred, epsilon, 1.0 - epsilon)
 
         return (y_pred - y_true) / (y_pred * (1 - y_pred))
 

@@ -1,4 +1,5 @@
 import time
+from json import JSONDecodeError
 from functools import wraps
 
 from .logger import Logger
@@ -9,9 +10,12 @@ logger = Logger("Errors")()
 KNOWN_EXCEPTIONS = [
     ValueError,
     KeyError,
+    TypeError,
+    PermissionError,
     FileNotFoundError,
     RuntimeError,
     AttributeError,
+    JSONDecodeError
 ]
 
 
@@ -28,10 +32,31 @@ def error_handler(handle_exceptions=(), suppress: bool = False) -> callable:
     Returns:
         function: The decorated method.
     """
-
     def decorator(method: callable) -> callable:
+        """
+        Decorator to handle exceptions in the decorated method.
+
+        Args:
+            method (function): The method to decorate.
+
+        Returns:
+            function: The decorated method.
+        """
         @wraps(method)
-        def wrapper(*args, **kwargs):
+        def wrapper(*args, **kwargs) -> any:
+            """
+            Wrapper function to handle exceptions.
+
+            Args:
+                *args: Variable length argument list.
+                **kwargs: Arbitrary keyword arguments.
+
+            Raises:
+                Exception: If suppress is False.
+
+            Returns:
+                Any: The result of the decorated method.
+            """
             try:
                 return method(*args, **kwargs)
             except handle_exceptions as e:
@@ -70,9 +95,18 @@ def timeit(method: callable) -> callable:
     Prints:
         str: The log message with the execution time.
     """
-
     @wraps(method)
     def wrapper(*args, **kwargs):
+        """
+        Wrapper function to measure the execution time
+
+        Args:
+            *args: Variable length argument list.
+            **kwargs: Arbitrary keyword arguments.
+
+        Returns:
+            Any: The result of the decorated
+        """
         start_time = time.time()
         result = method(*args, **kwargs)
         end_time = time.time()

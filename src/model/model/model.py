@@ -1,4 +1,6 @@
 from abc import ABC, abstractmethod
+
+import numpy as np
 from pandas import DataFrame
 
 
@@ -8,17 +10,12 @@ class Model(ABC):
         self.losses = None
         self.optimizer = None
 
+    @abstractmethod
     def add(self, layer):
         """
         Add a layer to the model.
         """
         self._layers.append(layer)
-
-    def pop(self):
-        """
-        Remove the last layer from the model.
-        """
-        self._layers.pop()
 
     @abstractmethod
     def compile(self, loss, optimizer):
@@ -42,15 +39,14 @@ class Model(ABC):
         pass
 
     @abstractmethod
-    def fit(self, X: DataFrame, epochs: int, val_df: DataFrame = None,
-            callbacks: list[object] = None) -> None:
+    def fit(self, X, epochs, val_df=None, callbacks=None) -> None:
         """
         Train the model.
         """
         pass
 
     @abstractmethod
-    def predict(self, X):
+    def predict(self, X: DataFrame) -> np.ndarray:
         """
         Make predictions.
         """

@@ -16,9 +16,9 @@ class CategoricalCrossEntropy(Loss):
             with respect to predicted outputs.
 
         get_config(self) -> dict:
-            Get the configuration of the Categorical Cross-Entropy losses function.
+            Get the configuration of the Categorical
+            Cross-Entropy losses function.
     """
-
     def __init__(self):
         super().__init__()
 
@@ -40,14 +40,13 @@ class CategoricalCrossEntropy(Loss):
 
         # Clip values to avoid log(0) issues
         epsilon = 1e-15
-        y_pred = np.clip(y_pred, epsilon, 1 - epsilon)
+        y_pred = np.clip(y_pred, epsilon, 1.0 - epsilon)
 
-        # Calculate categorical cross-entropy loss
-        if y_true.ndim == 1:
-            y_true = np.eye(y_pred.shape[1])[y_true]
+        if y_true.ndim <= 1:
+            num_classes = y_pred.shape[1]
+            y_true = np.eye(num_classes)[y_true]
 
         loss = - np.mean(y_true * np.log(y_pred))
-
         return float(loss)
 
     def gradient(self, y_true: np.ndarray, y_pred: np.ndarray) -> np.ndarray:
@@ -69,13 +68,14 @@ class CategoricalCrossEntropy(Loss):
 
         # Clip values to avoid division by zero
         epsilon = 1e-15
-        y_pred = np.clip(y_pred, epsilon, 1 - epsilon)
+        y_pred = np.clip(y_pred, epsilon, 1.0 - epsilon)
 
-        # Calculate gradient of categorical cross-entropy loss
-        if y_true.ndim == 1:
-            y_true = np.eye(y_pred.shape[1])[y_true]
+        if y_true.ndim <= 1:
+            num_classes = y_pred.shape[1]
+            y_true = np.eye(num_classes)[y_true]
 
-        return - y_true / y_pred
+        gradient = - y_true / y_pred
+        return gradient / len(y_true)
 
     def get_config(self) -> dict:
         """

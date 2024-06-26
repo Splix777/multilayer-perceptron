@@ -35,13 +35,13 @@ class Softmax(Activation):
         Compute the gradient of the Softmax function.
 
         Args:
-            x (np.ndarray): Input array.
+            x (np.ndarray): Input array with Softmax applied.
 
         Returns:
-            np.ndarray: Gradient array where elements are the derivatives of Softmax.
+            np.ndarray: Gradient array where elements
+                are the derivatives of Softmax.
         """
-        s = self.__call__(x)  # Softmax output
-        return s * (1 - s)
+        return x * (1 - x)
 
     def get_config(self) -> dict:
         """

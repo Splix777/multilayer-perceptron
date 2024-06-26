@@ -8,11 +8,14 @@ import numpy as np
 # from ..activations.softmax import Softmax
 
 from src.model.layers.layer import Layer
+from src.model.activations.leaky_relu import LeakyReLU
+from src.model.activations.parametric_relu import ParametricReLU
 from src.model.activations.relu import ReLU
 from src.model.activations.sigmoid import Sigmoid
 from src.model.activations.tanh import Tanh
 from src.model.activations.softmax import Softmax
 from src.model.optimizers.adam import AdamOptimizer
+from src.utils.logger import Logger
 
 
 class Dense(Layer):
@@ -42,11 +45,13 @@ class Dense(Layer):
             **kwargs: Additional keyword arguments.
         """
         super().__init__(**kwargs)
-        self.bias_gradient = None
-        self.weights_gradient = None
+        self.logger = Logger('Dense')()
+        self.bias_gradients = None
+        self.weights_gradients = None
         self.units = units
         self.kernel_initializer = kernel_initializer
         self.bias_initializer = bias_initializer
+        self.z = None
         self.optimizer = None
         self.activation_output = None
         self.input = None
@@ -54,6 +59,8 @@ class Dense(Layer):
         self.bias = None
         self.activation_function = {
             'relu': ReLU(),
+            'lrelu': LeakyReLU(),
+            'prelu': ParametricReLU(),
             'tanh': Tanh(),
             'sigmoid': Sigmoid(),
             'softmax': Softmax()}.get(activation)
@@ -66,13 +73,15 @@ class Dense(Layer):
 
         if self.kernel_initializer == 'glorot_uniform':
             limit = np.sqrt(6 / (fan_in + fan_out))
-            self.weights = np.random.uniform(-limit, limit, size=(fan_in, fan_out))
+            self.weights = np.random.uniform(-limit, limit,
+                                             size=(fan_in, fan_out))
         elif self.kernel_initializer == 'glorot_normal':
             std_dev = np.sqrt(2 / (fan_in + fan_out))
             self.weights = np.random.normal(0, std_dev, size=(fan_in, fan_out))
         elif self.kernel_initializer == 'he_uniform':
             limit = np.sqrt(6 / fan_in)
-            self.weights = np.random.uniform(-limit, limit, size=(fan_in, fan_out))
+            self.weights = np.random.uniform(-limit, limit,
+                                             size=(fan_in, fan_out))
         elif self.kernel_initializer == 'he_normal':
             std_dev = np.sqrt(2 / fan_in)
             self.weights = np.random.normal(0, std_dev, size=(fan_in, fan_out))
@@ -124,7 +133,6 @@ class Dense(Layer):
             np.ndarray: Output tensor of shape (batch_size, units).
         """
         self.input = inputs
-        # print(f'Input Shape: {inputs.shape}')
 
         if inputs.shape[-1] != self.weights.shape[0]:
             print(f"Inputs shape: {inputs.shape}")
@@ -132,10 +140,10 @@ class Dense(Layer):
             raise ValueError("Dimensions mismatch: "
                              "inputs and weights are not compatible.")
 
-        z = np.dot(inputs, self.weights) + self.bias
+        self.z = np.dot(inputs, self.weights) + self.bias
 
         if self.activation_function:
-            self.activation_output = self.activation_function(z)
+            self.activation_output = self.activation_function(self.z)
         else:
             raise ValueError("Activation function not found.")
 
@@ -145,16 +153,21 @@ class Dense(Layer):
         if not self.activation_function:
             raise ValueError("Activation function not found.")
 
-        activation_gradients = self.activation_function.gradient(self.activation_output)
+        activation_gradients = self.activation_function.gradient(
+            x=self.activation_output)
+
         loss_gradients = loss_gradients * activation_gradients
 
-        self.weights_gradient = np.dot(self.input.T, loss_gradients)
-        self.bias_gradient = np.sum(loss_gradients, axis=0, keepdims=True)
+        if isinstance(self.activation_function, ParametricReLU):
+            self.activation_function.update_alpha(
+                loss_gradients=loss_gradients,
+                input_data=self.z,
+                learning_rate=self.optimizer.learning_rate)
+
+        self.weights_gradients = np.dot(self.input.T, loss_gradients)
+        self.bias_gradients = np.sum(loss_gradients, axis=0, keepdims=True)
 
         return np.dot(loss_gradients, self.weights.T)
-
-
-
 
     @property
     def output_shape(self) -> tuple[int, ...]:
@@ -197,6 +210,12 @@ class Dense(Layer):
         """
         self.weights = weights
         self.bias = bias
+
+    @property
+    def learning_rate(self):
+        if not self.optimizer:
+            raise ValueError("Optimizer not found.")
+        return self.optimizer.learning_rate
 
 
 if __name__ == "__main__":

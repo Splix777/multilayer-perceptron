@@ -1,6 +1,4 @@
-import argparse
 import json
-import os
 import pickle
 
 import numpy as np
@@ -9,8 +7,8 @@ from pandas import DataFrame
 
 from sklearn.preprocessing import StandardScaler
 
-from src.utils.logger import Logger
 from src.utils.config import Config
+from src.utils.logger import Logger
 from src.utils.decorators import error_handler
 from src.dataset_handler.data_preprocessing import DataPreprocessor
 from src.model.callbacks.early_stopping import EarlyStopping
@@ -19,9 +17,6 @@ from src.model.model.sequential import Sequential
 from src.model.layers.input import InputLayer
 from src.model.layers.dense import Dense
 from src.model.layers.dropout import Dropout
-from src.model.losses.binary_cross_entropy import BinaryCrossEntropy
-from src.model.losses.categorical_cross_entropy import CategoricalCrossEntropy
-from src.model.optimizers.adam import AdamOptimizer
 
 
 class MultiLayerPerceptron:
@@ -31,7 +26,24 @@ class MultiLayerPerceptron:
         self.data_processor = DataPreprocessor()
 
     @error_handler(handle_exceptions=(FileNotFoundError, ValueError, KeyError))
-    def train_model(self, dataset_path: str, config_path: str = None):
+    def train_model(self, dataset_path: str, config_path: str = None) -> str:
+        """
+        Train a new model using the given dataset and model configuration.
+
+        Args:
+            dataset_path (str): Path to the dataset CSV file.
+            config_path (str): Path to the model configuration JSON file.
+
+        Raises:
+            FileNotFoundError: If the dataset path is invalid.
+            ValueError: If the dataset path is empty, or
+                if the dataset is missing the required columns.
+            KeyError: If the model configuration is missing required keys.
+
+        Returns:
+            str: Success message with the name of the trained model.
+        """
+        self.logger.info("Training model...")
         data = self._create_labeled_csv(dataset_path=dataset_path)
         # self._plot_data(data=data)
         train_df, val_df, scaler, labels = self._preprocess_data(data=data)
@@ -43,12 +55,12 @@ class MultiLayerPerceptron:
             val_data=val_df,
             config=model_config
         )
+        self._plot_model_history(model=trained_model, config=model_config)
         named_model = self._save_model(
             model=trained_model,
             scaler=scaler,
             labels=labels,
-            config=model_config,
-            val_data=val_df
+            config=model_config
         )
 
         return f"Successfully trained model: {named_model}"
@@ -57,12 +69,23 @@ class MultiLayerPerceptron:
         """
         Create a new CSV file with labeled columns.
 
+        Args:
+            dataset_path (str): Path to the dataset CSV file.
+
         Raises:
             FileNotFoundError: If the dataset path is invalid.
             ValueError: If the dataset path is empty, or
                 if the dataset is missing the required columns.
+
+        Returns:
+            DataFrame: Data with labeled columns.
         """
         data = pd.read_csv(dataset_path)
+
+        self.logger.info(
+            f"Loaded dataset from: {dataset_path}: "
+            f"Shape {data.shape}.",
+        )
 
         base_features = self.config.wdbc_labels['base_features']
         patient_id = self.config.wdbc_labels['id']
@@ -81,9 +104,21 @@ class MultiLayerPerceptron:
                 + worst_radius
         )
 
+        self.logger.info(f"Updated column names: {list(data.columns)}")
+
         return data
 
     def _plot_data(self, data: pd.DataFrame) -> None:
+        """
+        Plot the data distribution, correlation heatmap,
+        pairplot, and boxplots.
+
+        Args:
+            data (pd.DataFrame): Data to plot.
+
+        Returns:
+            None
+        """
         plotter = Plotter(
             data=data,
             save_dir=self.config.plot_dir
@@ -113,12 +148,30 @@ class MultiLayerPerceptron:
             hue=self.config.wdbc_labels['diagnosis']
         )
 
+        self.logger.info("Plotted Data Successfully.")
+
     def _preprocess_data(self, data: pd.DataFrame,
                          scaler: StandardScaler = None,
                          label_col: str = None,
                          drop_columns: list = None,
                          val_split: float = 0.2
-                         ):
+                         ) -> tuple:
+        """
+        Preprocess the data by loading, shuffling, and scaling it.
+
+        Args:
+            data (pd.DataFrame): Data to preprocess.
+            scaler (StandardScaler): Scaler to use for data normalization.
+            label_col (str): Column name for the target labels.
+            drop_columns (list): Columns to drop from the data.
+            val_split (float): Validation split ratio.
+
+        Returns:
+            pd.DataFrame: Preprocessed training data.
+            pd.DataFrame: Preprocessed validation data.
+            StandardScaler: Scaler used for data normalization.
+            dict: Target
+        """
         label_col = label_col or self.config.wdbc_labels['diagnosis']
         drop_columns = drop_columns or [self.config.wdbc_labels['id']]
 
@@ -134,35 +187,63 @@ class MultiLayerPerceptron:
 
         return train_df, val_df, scaler, labels
 
-    def _load_model_config(self, config_path: str = None):
-        path = config_path or f"{self.config.model_dir}/softmax_model.json"
-        # path = config_path or f"{self.config.model_dir}/sigmoid_model.json"
+    def _load_model_config(self, config_path: str = None) -> dict:
+        """
+        Load the model configuration from the given path.
 
-        with open(path, 'r') as f:
+        Args:
+            config_path (str): Path to the model
+                configuration JSON file.
+
+        Returns:
+            dict: Model configuration.
+        """
+        if not config_path:
+            config_path = f"{self.config.model_dir}/softmax_model.json"
+
+        with open(config_path, 'r') as f:
             config = json.load(f)
+
+        self.logger.info(f"Loaded model config from: {config_path}.")
+        self.logger.info(f"Model config: {json.dumps(config, indent=4)}")
 
         return config
 
     @staticmethod
-    def _check_model_config(model_config: dict):
+    def _check_model_config(model_config: dict) -> tuple:
+        """
+        Check the model configuration for required keys and values.
+
+        Args:
+            model_config (dict): Model configuration dictionary.
+
+        Raises:
+            KeyError: If a required key is missing.
+            ValueError: If a value is invalid.
+
+        Returns:
+            list: Model layers.
+            str: Optimizer type.
+            str: Loss function.
+        """
         required_keys = ['optimizer', 'loss', 'layers']
         for key in required_keys:
             if key not in model_config:
                 raise KeyError(f"Missing required key: {key}")
-            
+
         layers = model_config.get('layers', [])
         if len(layers) < 2:
             raise ValueError(
                 "Model must have at least an input and output layer.")
-        
+
         for layer in layers:
             layer_type = layer.get('type')
             if layer_type not in ['input', 'dense', 'dropout']:
                 raise ValueError("Invalid layer type.")
-            
+
             if layer_type == 'input' and 'input_shape' not in layer:
                 raise KeyError("Input layer must have an input shape.")
-                
+
             if layer_type == 'dense':
                 if 'units' not in layer:
                     raise KeyError("Dense layer must have units.")
@@ -178,7 +259,7 @@ class MultiLayerPerceptron:
         if 'type' not in optimizer or 'learning_rate' not in optimizer:
             raise KeyError("Optimizer must have a type.")
         optimizer_type = optimizer.get('type')
-        if optimizer_type not in ['adam']:
+        if optimizer_type not in ['adam', 'rmsprop']:
             raise ValueError("Invalid optimizer.")
 
         loss = model_config.get('loss')
@@ -187,7 +268,20 @@ class MultiLayerPerceptron:
 
         return layers, optimizer_type, loss
 
-    def _build_model(self, model_config: dict):
+    def _build_model(self, model_config: dict) -> Sequential:
+        """
+        Build a new model using the given configuration.
+
+        Args:
+            model_config (dict): Model configuration dictionary.
+
+        Raises:
+            KeyError: If a required key is missing.
+            ValueError: If a value is invalid.
+
+        Returns:
+            Sequential: New model.
+        """
         layers, optimizer, loss = self._check_model_config(
             model_config=model_config
         )
@@ -209,19 +303,34 @@ class MultiLayerPerceptron:
                 model.add(Dropout(
                     rate=layer.get('rate')
                 ))
+
         model.compile(
             optimizer=optimizer,
+            learning_rate=model_config.get('optimizer').get('learning_rate'),
             loss=loss
         )
 
-        print(model.summary())
+        self.logger.info(f"Model Summary:\n{model.summary()}")
+
         return model
 
     @staticmethod
     def _train_new_model(model: Sequential,
                          train_data: pd.DataFrame,
                          val_data: pd.DataFrame,
-                         config: dict):
+                         config: dict) -> Sequential:
+        """
+        Train a new model using the given data and configuration.
+
+        Args:
+            model (Sequential): Model to train.
+            train_data (pd.DataFrame): Training data.
+            val_data (pd.DataFrame): Validation data.
+            config (dict): Model configuration.
+
+        Returns:
+            Sequential: Trained model.
+        """
         model.fit(
             X=train_data,
             epochs=config.get('epochs', 1_000),
@@ -237,100 +346,180 @@ class MultiLayerPerceptron:
 
         return model
 
+    def _plot_model_history(self, model: Sequential, config: dict) -> None:
+        """
+        Plot the model training history.
+
+        Args:
+            model (Sequential): Trained model.
+
+        Raises:
+            ValueError: If the model history is empty.
+
+        Returns:
+            None
+        """
+        history = model.history
+        model_name = config.get('model_name', 'model')
+        if history is None:
+            raise ValueError("Model history is empty.")
+
+        self.logger.info(f"Model history: {json.dumps(history, indent=4)}")
+
+        df = pd.DataFrame({
+            'train_loss': history['loss']['training'],
+            'val_loss': history['loss']['validation'],
+            'train_accuracy': history['accuracy']['training'],
+            'val_accuracy': history['accuracy']['validation']
+        })
+
+        plotter = Plotter(
+            data=df,
+            save_dir=self.config.plot_dir
+        )
+
+        plotter.plot_loss(model_name=model_name)
+        plotter.plot_accuracy(model_name=model_name)
+
+        self.logger.info(f"Plotted model history for: {model_name}.")
+
     def _save_model(self, model: Sequential,
                     scaler: StandardScaler,
                     labels: dict,
-                    config: dict,
-                    val_data: pd.DataFrame):
+                    config: dict) -> str:
+        """
+        Save the trained model to a pickle file.
+
+        Args:
+            model (Sequential): Trained model.
+            scaler (StandardScaler): Scaler used for
+                data normalization.
+            labels (dict): Target labels.
+            config (dict): Model configuration.
+            val_data (pd.DataFrame): Validation data.
+
+        Returns:
+            str: Name of the saved model.
+        """
         model_json = {
             "model": model,
             "scaler": scaler,
             "labels": labels,
             "config": config,
-            "val_data": val_data
         }
 
         model_name = config.get('model_name', 'model')
-        with open(f"{self.config.model_dir}/{model_name}.pkl", 'wb') as f:
+        model_path = f"{self.config.model_dir}/{model_name}.pkl"
+        with open(model_path, 'wb') as f:
             pickle.dump(model_json, f)
+
+        self.logger.info(f"Saved model to:\n{model_path}")
 
         return model_name
 
+    def _load_model(self, model_path: str):
+        with open(model_path, 'rb') as f:
+            pkl_model = pickle.load(f)
 
+        model = pkl_model["model"]
+        scaler = pkl_model["scaler"]
+        labels = pkl_model["labels"]
+        model_config = pkl_model["config"]
 
-    def evaluate_model(self):
-        self.model.evaluate(self.val_data)
+        self.logger.info(f"Loaded model from:\n{model_path}\n"
+                         f"Model: {model.summary()}\n"
+                         f"Scaler: {scaler}\n"
+                         f"Labels: {labels}\n"
+                         f"Config: {json.dumps(model_config, indent=4)}")
 
-    def predict(self, data_path: str):
+        return model, scaler, labels, model_config
+
+    def evaluate_model(self, model_path: str, data_path: str) -> str:
         """
-        Make predictions using the trained model.
+        Evaluate a trained model using the given data.
 
         Args:
-            data_path (pd.DataFrame | pd.Series): Data to make predictions on.
+            model_path (str): Path to the trained model pickle file.
+            data_path (str): Path to the data CSV file.
 
         Returns:
-            None
+            str: Evaluation results.
         """
-        if not isinstance(data_path, str) and data_path.endswith('.csv'):
-            raise ValueError("Data must be a CSV file.")
-
-        if not os.path.exists(data_path):
-            raise FileNotFoundError(f"File not found: {data_path}")
-
-        data = self.preprocess_predict_data(data_path)
-
-        predictions = []
-        for _, row in data.iterrows():
-            prediction = self.model.predict(row)
-            prediction = 1 if prediction >= 0.5 else 0
-            prediction_label = next(
-                (
-                    key
-                    for key, value in self.target_binary_labels.items()
-                    if prediction == value
-                ),
-                None,
-            )
-            predictions.append(prediction_label)
-
-        original_data = pd.read_csv(data_path)
-        original_data = original_data.iloc[:, 1].values
-
-        total_correct = sum(
-            original == prediction
-            for original, prediction in zip(original_data, predictions)
+        model, scaler, labels, model_config = self._load_model(
+            model_path=model_path
         )
-        print(f"Predictions: {predictions}")
-        print(f"Accuracy: {total_correct / len(predictions) * 100:.2f}%")
+        data = self._create_labeled_csv(data_path)
+        processed_data, _, _, _ = self._preprocess_data(
+            data=data,
+            scaler=scaler,
+            label_col='diagnosis',
+            drop_columns=['id'],
+            val_split=0.0
+        )
 
-    def load_model(self):
-        with open(f"{self.config.model_dir}/model.pkl", 'rb') as f:
-            model_json = pickle.load(f)
-        self.model = model_json["model"]
-        self.scaler = model_json["scaler"]
-        self.target_binary_labels = model_json["labels"]
+        loss, accuracy = model.evaluate(X=processed_data)
 
-    def run(self):
-        self._create_labeled_csv(self.dataset_path)
-        # self.plot_data()
-        self._preprocess_data()
-        self._build_model()
-        self._train_model()
-        self.evaluate_model()
-        self._save_model()
+        message = f"Model evaluation: Loss: {loss}, Accuracy: {accuracy}"
 
-        self.load_model()
-        self.evaluate_model()
-        self.predict('data/csv/data.csv')
+        self.logger.info(message)
 
-    def load_dataset(self, dataset_path: str):
-        if not os.path.exists(dataset_path):
-            raise FileNotFoundError(f"File not found: {dataset_path}")
+        return message
 
-        self.dataset_path = dataset_path
+    def predict(self, model_path: str, data_path: str) -> list:
+        """
+        Predict the target labels using the given data.
+
+        Args:
+            model_path (str): Path to the trained model pickle file.
+            data_path (str): Path to the data CSV file.
+
+        Returns:
+            list: Predicted labels.
+        """
+        model, scaler, labels, model_config = self._load_model(
+            model_path=model_path
+        )
+        data = self._create_labeled_csv(data_path)
+        processed_data, _, _, _ = self._preprocess_data(
+            data=data,
+            scaler=scaler,
+            label_col='diagnosis',
+            drop_columns=['id'],
+            val_split=0.0
+        )
+
+        predictions = model.predict(X=processed_data)
+
+        self.logger.info(f"Predictions: {predictions}")
+
+        return self._predictions_labels(predictions=predictions, labels=labels)
+
+    @staticmethod
+    def _predictions_labels(predictions: np.ndarray, labels: dict) -> list:
+        """
+        Convert the model predictions to target labels.
+
+        Args:
+            predictions (np.ndarray): Model predictions.
+            labels (dict): Target labels.
+
+        Returns:
+            list: Labeled predictions.
+        """
+        if len(predictions.shape) > 1:
+            predictions = np.argmax(predictions, axis=1)
+
+        labeled_predictions = []
+        for pred in predictions:
+            pred = next(key for key, value in labels.items() if value == pred)
+            labeled_predictions.append(pred)
+
+        return labeled_predictions
 
 
 if __name__ == '__main__':
     dataset = 'data/csv/data.csv'
+    mpath = 'data/models/softmax_model.pkl'
     mlp = MultiLayerPerceptron()
-    mlp.train_model(dataset)
+    print(mlp.evaluate_model(mpath, dataset))
+

@@ -4,7 +4,8 @@ from .callback import Callback
 
 
 class EarlyStopping(Callback):
-    def __init__(self, monitor: str = 'val_loss', patience: int = 5, verbose: bool = False):
+    def __init__(self, monitor: str = 'val_loss', patience: int = 5,
+                 verbose: bool = False):
         self.monitor = monitor
         self.patience = patience
         self.verbose = verbose
@@ -16,6 +17,15 @@ class EarlyStopping(Callback):
         self.model = None
 
     def set_model(self, model) -> None:
+        """
+        Set the model for the callback.
+
+        Args:
+            model (Model): Model instance
+
+        Returns:
+            None
+        """
         self.model = model
 
     def on_epoch_start(self, epoch: int, logs: dict = None) -> None:
@@ -52,7 +62,7 @@ class EarlyStopping(Callback):
         self.best_weights = None
 
     def on_train_end(self, logs: dict = None) -> None:
-        if self.stopped_epoch > 0 and self.verbose:
+        if self.verbose:
             print(f"Restoring model weights from the end of the best epoch"
                   f"({self.best_epoch + 1}).")
 

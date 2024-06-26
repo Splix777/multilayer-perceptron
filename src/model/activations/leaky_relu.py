@@ -18,10 +18,14 @@ of deep learning models.
 # Rectified Linear Unit
 
 
-class ReLU(Activation):
+class LeakyReLU(Activation):
+    def __init__(self, alpha=0.01):
+        super().__init__()
+        self.alpha = alpha
+
     def __call__(self, x: np.ndarray) -> np.ndarray:
         """
-        Apply the ReLU activation function.
+        Apply the ReLU activation function with an optional alpha parameter.
 
         Args:
             x (np.ndarray): Input array.
@@ -29,7 +33,7 @@ class ReLU(Activation):
         Returns:
             np.ndarray: Output array with ReLU applied element-wise.
         """
-        return np.maximum(0, x)
+        return np.maximum(self.alpha * x, x)
 
     def gradient(self, x: np.ndarray) -> np.ndarray:
         """
@@ -39,9 +43,9 @@ class ReLU(Activation):
             x (np.ndarray): Input array.
 
         Returns:
-            np.ndarray: Gradient array where elements are 1 if the input is greater than 0, else 0.
+            np.ndarray: Gradient array where elements are 1 if the input is greater than 0, else alpha.
         """
-        return np.where(x > 0, 1, 0)
+        return np.where(x > 0, 1, self.alpha)
 
     def get_config(self) -> dict:
         """
@@ -50,4 +54,4 @@ class ReLU(Activation):
         Returns:
             dict: Configuration dictionary.
         """
-        return {'name': self.__class__.__name__}
+        return {'name': self.__class__.__name__, 'alpha': self.alpha}

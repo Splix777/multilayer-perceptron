@@ -18,6 +18,7 @@ it effective for certain types of data normalization tasks.
 
 # Hyperbolic Tangent
 
+
 class Tanh(Activation):
     def __call__(self, x: np.ndarray) -> np.ndarray:
         """
@@ -41,7 +42,7 @@ class Tanh(Activation):
         Returns:
             np.ndarray: Gradient array where elements are the derivatives of Tanh.
         """
-        return 1 - np.tanh(x) ** 2
+        return 1 - np.power(x, 2)
 
     def get_config(self) -> dict:
         """

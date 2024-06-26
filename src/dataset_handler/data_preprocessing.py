@@ -12,10 +12,6 @@ class DataPreprocessor:
     def __init__(self):
         """
         Initialize the DataLoader with the given scaler.
-
-        Args:
-            scaler (StandardScaler): Scaler to standardize
-                the features.
         """
         self.label_encoder = LabelEncoder()
         self.logger = Logger("data_preprocessor")()
@@ -27,7 +23,7 @@ class DataPreprocessor:
                      seed: int = 42,
                      drop_columns: list[str] = None,
                      scaler: StandardScaler = None,
-                     val_split: float = 0.2):
+                     val_split: float = 0.2) -> tuple:
         """
         Load a dataset from a CSV file, preprocess labels,
         and split it into training and validation sets.
@@ -77,6 +73,9 @@ class DataPreprocessor:
             test_size=val_split,
             shuffle=shuffle,
             random_state=seed)
+
+        self.logger.info(f"Created training and validation sets with "
+                         f"{train_df.shape[0]} and {val_df.shape[0]} samples.")
 
         return train_df, val_df, scaler, labels
 

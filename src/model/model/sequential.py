@@ -6,27 +6,33 @@ from sklearn.model_selection import train_test_split
 
 from .model import Model
 from ..layers.layer import Layer
+from ..layers.dropout import Dropout
 from ..layers.input import InputLayer
-from ..optimizers.adam import AdamOptimizer
 from ..optimizers.optimizer import Optimizer
+from ..optimizers.adam import AdamOptimizer
+from ..optimizers.rms_prop import RMSpropOptimizer
+from ..losses.loss import Loss
 from ..losses.binary_cross_entropy import BinaryCrossEntropy
 from ..losses.categorical_cross_entropy import CategoricalCrossEntropy
 from ..callbacks.callback import Callback
+from src.utils.logger import Logger
 
 
 class Sequential(Model):
     def __init__(self):
         super().__init__()
-        self.losses = {'training': [], 'validation': []}
-        self.metrics = {'training': [], 'validation': []}
+        self.logger = Logger("Sequential")()
+        self.losses = {'training': {}, 'validation': {}}
+        self.accuracy = {'training': {}, 'validation': {}}
         self.optimizer = None
         self.loss = None
         self._layers = None
         self.built = False
         self.callbacks = None
         self.stop_training = False
+        self._dropout_active = True
 
-    # Core Methods
+    # <-- Add Layers -->
     def add(self, layer: Layer) -> None:
         """
         Add a layer to the model.
@@ -43,66 +49,109 @@ class Sequential(Model):
         if not isinstance(layer, Layer):
             raise ValueError('You can only add a Layer instance to the model.')
 
-        self.built = False
-
+        # The First layer should specify the input shape
         if not self._layers:
-            if not isinstance(layer, InputLayer) and layer.input_shape is None:
-                raise ValueError(
-                    "The first layer should specify the input shape.")
-
+            if not isinstance(layer, InputLayer) or layer.input_shape is None:
+                raise ValueError("First layer should specify the input shape.")
             self._layers = []
 
+        # The input shape of the current layer should
+        # match the output shape of the previous layer
         if self._layers:
             layer.input_shape = self._layers[-1].output_shape
 
         self._layers.append(layer)
-        self._layers[-1].build(layer.input_shape)
+        layer.build(layer.input_shape)
 
         if len(self._layers) > 1:
             self.built = True
 
-    def compile(self, loss: str, optimizer: Optimizer | str) -> None:
+        self.logger.info(f"Added {layer.__class__.__name__}, "
+                         f"Output Shape: {layer.output_shape}")
+
+    # <-- Compile Model -->
+    def compile(self, loss: str, optimizer: str, learning_rate: int = 0.001):
         """
         Configure the model for training.
 
         Args:
         loss (str): Name of the loss function to use.
-        optimizer (Optimizer | str): Optimizer instance or name
-            of the optimizer to use.
+        optimizer (Optimizer | str): Optimizer instance
+            or name of the optimizer to use.
+        learning_rate (float): Learning rate for the optimizer.
 
         Raises:
-        ValueError: If the model is not built or the loss is
-            not recognized.
+        ValueError: If the model is not built or the loss
+            is not recognized.
+        TypeError: If the optimizer type is unsupported.
         """
         if not self.built:
             raise ValueError(
                 "You must add layers to the model before compiling.")
 
-        if loss == 'binary_crossentropy':
-            self.loss = BinaryCrossEntropy()
-        elif loss == 'categorical_crossentropy':
-            self.loss = CategoricalCrossEntropy()
-        else:
-            raise ValueError("Unknown loss.")
-
-        def create_optimizer_instance(optimizer_instance: Optimizer | str):
-            if isinstance(optimizer_instance, str):
-                if optimizer_instance == 'adam':
-                    return AdamOptimizer()
-                else:
-                    raise ValueError("Unknown optimizer.")
-            if isinstance(optimizer_instance, AdamOptimizer):
-                return AdamOptimizer(
-                    learning_rate=optimizer_instance.learning_rate
-                )
-            else:
-                raise TypeError("Unsupported optimizer type.")
+        self.loss = self._set_loss_function(loss)
 
         for layer in self._layers:
             if layer.trainable:
-                layer.optimizer = create_optimizer_instance(optimizer)
+                layer.optimizer = self._create_optimizer(optimizer,
+                                                         learning_rate)
 
-    def call(self, inputs: np.ndarray | list) -> np.ndarray | list:
+        self.logger.info(f"Loss Function: {loss} -- "
+                         f"Optimizer: {optimizer} - LR {learning_rate}")
+
+    @staticmethod
+    def _set_loss_function(loss: str) -> Loss:
+        """
+        Set the loss function for the model.
+
+        Args:
+            loss (str): Name of the loss function.
+
+        Returns:
+            Loss: Loss function instance.
+
+        Raises:
+            ValueError: If the loss function is not recognized.
+        """
+        loss_functions = {
+            'binary_crossentropy': BinaryCrossEntropy,
+            'categorical_crossentropy': CategoricalCrossEntropy,
+        }
+
+        if loss not in loss_functions:
+            raise ValueError(f"Unknown loss: {loss}")
+
+        return loss_functions[loss]()
+
+    @staticmethod
+    def _create_optimizer(optimizer: str, learning_rate: float) -> Optimizer:
+        """
+        Create an optimizer instance for the model.
+
+        Args:
+            optimizer (Optimizer | str): Optimizer instance
+                or name of the optimizer to use.
+            learning_rate (float): Learning rate for the optimizer.
+
+        Returns:
+            Optimizer: Optimizer instance.
+
+        Raises:
+            TypeError: If the optimizer type is unsupported.
+        """
+        optimizer_classes = {
+            'adam': AdamOptimizer,
+            'rmsprop': RMSpropOptimizer
+        }
+
+        if optimizer.lower() not in optimizer_classes:
+            raise ValueError(f"Unknown optimizer: {optimizer}")
+
+        return optimizer_classes[optimizer.lower()](
+            learning_rate=learning_rate)
+
+    # <-- Forward and Backward Pass -->
+    def call(self, inputs: np.ndarray | list) -> np.ndarray:
         """
         Perform the forward pass through all layers.
 
@@ -144,9 +193,13 @@ class Sequential(Model):
             loss_gradients = layer.backward(loss_gradients)
             if layer.trainable:
                 layer.weights, layer.bias = layer.optimizer.update(
-                    layer.weights, layer.bias,
-                    layer.weights_gradient, layer.bias_gradient)
+                    weights=layer.weights,
+                    bias=layer.bias,
+                    weights_gradients=layer.weights_gradients,
+                    bias_gradients=layer.bias_gradients
+                )
 
+    # <-- Training Methods -->
     def fit(self, X: DataFrame, epochs: int, val_split: float = None,
             val_data: DataFrame = None, callbacks: list[Callback] = None,
             batch_size: int = 32, verbose: bool = False) -> None:
@@ -173,6 +226,7 @@ class Sequential(Model):
         """
         self._validate_inputs(X, epochs, val_split, val_data,
                               callbacks, batch_size, verbose)
+
         self._init_callbacks(callbacks)
 
         X_trn, y_trn, X_val, y_val = self._split_data(X, val_split, val_data)
@@ -181,21 +235,24 @@ class Sequential(Model):
             if self.stop_training:
                 break
 
-            losses = []
-            metrics = []
+            X_trn, y_trn = self._shuffle_data(X_trn, y_trn)
+
+            trn_loss = []
+            trn_accuracy = []
             for X, y in self._iter_batches(X_trn, y_trn, batch_size):
                 loss_value, accuracy = self._train_batch(X, y)
-                losses.append(loss_value)
-                metrics.append(accuracy)
+                trn_loss.append(loss_value)
+                trn_accuracy.append(accuracy)
 
             val_loss, val_accuracy = self._eval_validation_data(X_val, y_val)
 
-            log = self._update_metrics(losses, metrics, val_loss, val_accuracy)
+            log = self._update_metrics(trn_loss, trn_accuracy, val_loss,
+                                       val_accuracy, epoch)
 
             if verbose:
-                print(f"Epoch {epoch + 1}/{epochs}, "
+                print(f"Epoch {epoch + 1}/{epochs}: "
                       f"Accuracy: {log['accuracy']:.3f}, "
-                      f"Loss: {log['loss']:.3f}, "
+                      f"Loss: {log['loss']:.3f} -- "
                       f"Val Accuracy: {log['val_accuracy']:.3f}, "
                       f"Val Loss: {log['val_loss']:.3f}")
 
@@ -205,7 +262,7 @@ class Sequential(Model):
         for callback in callbacks:
             callback.on_train_end()
 
-    def predict(self, X: DataFrame | pd.Series) -> np.ndarray:
+    def predict(self, X: DataFrame) -> np.ndarray:
         """
         Make predictions using the trained model.
 
@@ -218,16 +275,13 @@ class Sequential(Model):
         Raises:
             ValueError: If an input data type is incorrect.
         """
-        if not isinstance(X, DataFrame) and not isinstance(X, pd.Series):
+        if not isinstance(X, DataFrame):
             raise ValueError("X should be a pandas DataFrame or Series.")
-
-        # Convert DataFrame to a numpy array for compatibility with the model
-        if isinstance(X, pd.Series):
-            X = pd.DataFrame(X).T
-
-        X_pred, _ = self._one_hot_encoding(X)
-
-        return self.call(X_pred)
+        self.dropout_active = False
+        X_eval, _ = self._one_hot_encoding(X)
+        predictions = self.call(X_eval)
+        self.dropout_active = True
+        return predictions
 
     def evaluate(self, X: DataFrame) -> tuple[float, float]:
         """
@@ -239,41 +293,21 @@ class Sequential(Model):
         Returns:
             tuple: Tuple of losses and accuracy.
         """
-        X_eval, y_eval = self._one_hot_encoding(X)
-        output = self.call(X_eval)
-        loss_value = self.loss(y_eval, output)
-
-        predictions = (output >= 0.5).astype(int)
-        accuracy = np.mean(predictions == y_eval)
-
-        print(f"Accuracy: {accuracy:.3f}, Loss: {loss_value:.3f}")
-
-        return loss_value, float(accuracy)
-
-    def summary(self) -> None:
-        """
-        Print a summary of the model architecture.
-        """
-        for i, layer in enumerate(self._layers):
-            output_shape = layer.output_shape
-            parameters = layer.count_parameters()
-            print(f"Layer {i + 1} {layer.__class__.__name__}: "
-                  f"Trainable: {layer.trainable}, "
-                  f"Output Shape: {output_shape}, "
-                  f"Parameters: {parameters}",
-                  sep=' ', end='\n'
-                  )
-
-        print(f"Total Parameters: {self.count_parameters()}")
-
-    def count_parameters(self) -> int:
-        """
-        Count the total number of parameters in the model.
-
-        Returns:
-            int: Total number of parameters.
-        """
-        return sum(layer.count_parameters() for layer in self._layers)
+        if not isinstance(X, DataFrame):
+            raise ValueError("X should be a pandas DataFrame.")
+        self.dropout_active = False
+        if self.model_output_units > 1:
+            X_eval, y_eval = self._one_hot_encoding(X)
+        else:
+            X_eval, y_eval = self._label_encoding(X)
+        predictions = self.call(X_eval)
+        loss = self.loss(y_eval, predictions)
+        if isinstance(self.loss, CategoricalCrossEntropy):
+            accuracy = self._categorical_accuracy(y_eval, predictions)
+        else:
+            accuracy = self._binary_accuracy(y_eval, predictions)
+        self.dropout_active = True
+        return loss, accuracy
 
     # <-- Epoch Methods -->
     @staticmethod
@@ -311,15 +345,37 @@ class Sequential(Model):
 
         self.backward(loss_gradients)
 
-        if self.loss == CategoricalCrossEntropy:
+        if isinstance(self.loss, CategoricalCrossEntropy):
             accuracy = self._categorical_accuracy(y_batch, output)
         else:
             accuracy = self._binary_accuracy(y_batch, output)
 
         return loss_value, accuracy
 
-    @staticmethod
-    def _binary_accuracy(y_true: np.ndarray, y_pred: np.ndarray):
+    def _eval_validation_data(self, X_val: np.ndarray, y_val: np.ndarray):
+        """
+        Test the model on the validation data.
+
+        Args:
+            X_val (np.ndarray): Validation input features data.
+            y_val (np.ndarray): Validation target labels data.
+
+        Returns:
+            Tuple[float, float]: Validation loss and accuracy.
+        """
+        self.dropout_active = False
+        val_pred = self.call(X_val)
+        val_loss = self.loss(y_val, val_pred)
+
+        if self.loss == CategoricalCrossEntropy:
+            val_accuracy = self._categorical_accuracy(y_val, val_pred)
+        else:
+            val_accuracy = self._binary_accuracy(y_val, val_pred)
+
+        self.dropout_active = True
+        return val_loss, val_accuracy
+
+    def _binary_accuracy(self, y_true: np.ndarray, y_pred: np.ndarray):
         """
         Calculate the accuracy of the model.
 
@@ -330,7 +386,9 @@ class Sequential(Model):
         Returns:
             float: Accuracy of the model.
         """
-        return float(np.mean((y_pred >= 0.5).astype(int) == y_true))
+        if self.model_output_units > 1:
+            return np.mean((y_pred >= 0.5).astype(int) == y_true)
+        return np.mean((y_pred >= 0.5).astype(int).flatten() == y_true)
 
     @staticmethod
     def _categorical_accuracy(y_true: np.ndarray, y_pred: np.ndarray):
@@ -344,30 +402,10 @@ class Sequential(Model):
         Returns:
             float: Accuracy of the model.
         """
-        y_pred_classes = np.argmax(y_pred, axis=1)
-        accuracy = np.mean(y_pred_classes == y_true)
+        true_classes = np.argmax(y_true, axis=1) if y_true.ndim > 1 else y_true
+        pred_classes = np.argmax(y_pred, axis=1)
+        accuracy = np.mean(pred_classes == true_classes)
         return float(accuracy)
-
-    def _eval_validation_data(self, X_val: np.ndarray, y_val: np.ndarray):
-        """
-        Test the model on the validation data.
-
-        Args:
-            X_val (np.ndarray): Validation input features data.
-            y_val (np.ndarray): Validation target labels data.
-
-        Returns:
-            Tuple[float, float]: Validation loss and accuracy.
-        """
-        val_pred = self.call(X_val)
-        val_loss = self.loss(y_val, val_pred)
-
-        if self.loss == CategoricalCrossEntropy:
-            val_accuracy = self._categorical_accuracy(y_val, val_pred)
-        else:
-            val_accuracy = self._binary_accuracy(y_val, val_pred)
-
-        return val_loss, val_accuracy
 
     # <-- Getters and Setters -->
     def get_weights(self):
@@ -389,7 +427,7 @@ class Sequential(Model):
         for layer, (w, b) in zip(self._layers, weights):
             layer.set_weights(weights=w, bias=b)
 
-    # <-- Callbacks -->
+    # <-- Validation and Initializer -->
     def _init_callbacks(self, callbacks: list[Callback]):
         """
         Initialize the callbacks.
@@ -402,44 +440,9 @@ class Sequential(Model):
         for callback in callbacks:
             callback.set_model(self)
             callback.on_train_begin()
+            self.logger.info(f"Init Callback: {callback.__class__.__name__}")
 
         self.callbacks = callbacks
-
-    # <-- DataFrame to Numpy Array -->
-    @staticmethod
-    def _one_hot_encoding(X: DataFrame, num_classes: int = None):
-        """
-        Prepare the data for training.
-
-        Args:
-            X (DataFrame): Input features data.
-            num_classes (int): Number of classes in the dataset.
-
-        Returns:
-            np.ndarray: Numpy array of input features.
-        """
-        if 'diagnosis' not in X.columns:
-            raise ValueError("The target column is missing.")
-
-        # Separate features and target
-        X_feature = X.drop(columns=['diagnosis']).values
-        y_true = X['diagnosis'].values.astype(int)
-
-        # Get the number of samples (Rows)
-        n_samples = y_true.shape[0]
-
-        # Flatten y_true if necessary (1D array)
-        y_true = y_true.ravel()
-
-        # Determine the number of classes if not provided
-        if num_classes is None:
-            num_classes = np.max(y_true) + 1
-
-        # One-hot encode the labels
-        y_one_hot = np.zeros((n_samples, num_classes))
-        y_one_hot[np.arange(n_samples), y_true] = 1
-
-        return X_feature, y_one_hot
 
     def _validate_inputs(self, X: DataFrame, epochs: int, val_split: float,
                          val_data: DataFrame, callbacks: list[Callback],
@@ -476,6 +479,7 @@ class Sequential(Model):
         self.batch_size = batch_size
         self.verbose = verbose
 
+    # <-- Data Preparation -->
     def _split_data(self, X: DataFrame, val_split: float, val_data: DataFrame):
         """
         Split the data into training and validation sets.
@@ -493,13 +497,91 @@ class Sequential(Model):
         else:
             X_train = X
 
-        X_train, y_train = self._one_hot_encoding(X_train)
-        X_val, y_val = self._one_hot_encoding(val_data)
+        if self.model_output_units > 1:
+            X_train, y_train = self._one_hot_encoding(X_train)
+            X_val, y_val = self._one_hot_encoding(val_data)
+            self.logger.info(f"Output Units: {self.model_output_units}: "
+                             f"Using One-Hot Encoding")
+        else:
+            X_train, y_train = self._label_encoding(X_train)
+            X_val, y_val = self._label_encoding(val_data)
+            self.logger.info(f"Output Units: {self.model_output_units}: "
+                             f"Using Label Encoding")
 
         return X_train, y_train, X_val, y_val
 
+    @staticmethod
+    def _shuffle_data(X_trn: np.ndarray, y_trn: np.ndarray):
+        """
+        Shuffle the training data and corresponding labels.
+
+        Args:
+            X_trn (np.ndarray): Training features data.
+            y_trn (np.ndarray): Training labels data.
+
+        Returns:
+            np.ndarray: Shuffled training features data.
+            np.ndarray: Shuffled training labels data.
+        """
+        # Shuffle X_trn and y_trn using the same random permutation
+        indices = np.random.permutation(len(X_trn))
+        return X_trn[indices], y_trn[indices]
+
+    # <-- Hot-Encode / Label Encoding -->
+    @staticmethod
+    def _one_hot_encoding(X: DataFrame, num_classes: int = None) -> tuple:
+        """
+        Prepare the data for training.
+
+        Args:
+            X (DataFrame): Input features data.
+            num_classes (int): Number of classes in the dataset.
+
+        Returns:
+            np.ndarray: Numpy array of input features.
+        """
+        if 'diagnosis' not in X.columns:
+            raise ValueError("The target column is missing.")
+
+        # Separate features and target
+        X_feature = X.drop(columns=['diagnosis']).values
+        y_true = X['diagnosis'].values.astype(int)
+
+        # Get the number of samples (Rows)
+        n_samples = y_true.shape[0]
+
+        # Flatten y_true if necessary (1D array)
+        y_true = y_true.ravel()
+
+        # Determine the number of classes if not provided
+        if num_classes is None:
+            num_classes = np.max(y_true) + 1
+
+        # One-hot encode the labels
+        y_one_hot = np.zeros((n_samples, num_classes))
+        y_one_hot[np.arange(n_samples), y_true] = 1
+
+        return X_feature, y_one_hot
+
+    @staticmethod
+    def _label_encoding(data: DataFrame) -> tuple:
+        """
+        Get the labels from the DataFrame.
+
+        Args:
+            data (DataFrame): Input features data.
+
+        Returns:
+            np.ndarray: Numpy array of labels.
+        """
+        X = data.drop(columns=['diagnosis']).values
+        y = data['diagnosis'].values.astype(int)
+
+        return X, y
+
+    # <-- Metrics and Logging -->
     def _update_metrics(self, losses: list[float], metrics: list[float],
-                        val_loss: float, val_accuracy: float):
+                        val_loss: float, val_accuracy: float, epoch: int):
         """
         Update the metrics for the model.
 
@@ -512,10 +594,10 @@ class Sequential(Model):
         Returns:
             dict: Dictionary of updated metrics.
         """
-        self.losses['training'].append(np.mean(losses))
-        self.metrics['training'].append(np.mean(metrics))
-        self.losses['validation'].append(val_loss)
-        self.metrics['validation'].append(val_accuracy)
+        self.losses['training'][epoch] = np.mean(losses)
+        self.accuracy['training'][epoch] = np.mean(metrics)
+        self.losses['validation'][epoch] = val_loss
+        self.accuracy['validation'][epoch] = val_accuracy
 
         return {
             'loss': np.mean(losses),
@@ -523,3 +605,81 @@ class Sequential(Model):
             'val_loss': val_loss,
             'val_accuracy': val_accuracy
         }
+
+    @property
+    def history(self) -> dict:
+        """
+        Return the training history of the model.
+
+        Returns:
+            dict: Dictionary of training history.
+        """
+        return {'loss': self.losses, 'accuracy': self.accuracy}
+
+    @property
+    def model_output_units(self) -> int:
+        """
+        Return the number of output units of the model.
+
+        Returns:
+            int: Number of output units.
+        """
+        return self._layers[-1].output_shape[1]
+
+    # <-- Dropout Inference Mode -->
+    @property
+    def dropout_active(self):
+        """
+        Return the dropout active mode.
+        """
+        return self._dropout_active
+
+    @dropout_active.setter
+    def dropout_active(self, value):
+        """
+        Set the dropout active mode.
+
+        Args:
+            value (bool): Whether to activate dropout (True)
+                or deactivate dropout (False).
+        """
+        self._dropout_active = bool(value)
+        self._set_dropout_inference_mode(train_mode=self._dropout_active)
+
+    def _set_dropout_inference_mode(self, train_mode=True):
+        """
+        Set all Dropout layers to the specified mode.
+
+        Args:
+            train_mode (bool): Whether to activate dropout (True)
+                or deactivate dropout (False).
+        """
+        for layer in self._layers:
+            if isinstance(layer, Dropout):
+                layer.train_mode = train_mode
+
+    # <-- Summary and Layer Parameters -->
+    def summary(self) -> str:
+        """
+        Print a summary of the model architecture.
+        """
+        summary = ""
+        for i, layer in enumerate(self._layers):
+            output_shape = layer.output_shape
+            parameters = layer.count_parameters()
+            summary += (f"Layer {i + 1} {layer.__class__.__name__}: "
+                        f"Trainable: {layer.trainable}, "
+                        f"Output Shape: {output_shape}, "
+                        f"Parameters: {parameters}\n")
+
+        summary += f"Total Parameters: {self.count_parameters()}"
+        return summary
+
+    def count_parameters(self) -> int:
+        """
+        Count the total number of parameters in the model.
+
+        Returns:
+            int: Total number of parameters.
+        """
+        return sum(layer.count_parameters() for layer in self._layers)
