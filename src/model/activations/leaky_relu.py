@@ -1,31 +1,29 @@
 import numpy as np
-from ..activations.activation import Activation
 
-"""
-ReLU (Rectified Linear Unit) is an activation function
-commonly used in neural networks. It operates by passing
-through all positive input values unchanged, effectively
-setting negative values to zero. This non-linear
-transformation introduces sparsity in the network,
-enhancing its ability to model complex patterns in data.
-ReLU is preferred over other activation functions like sigmoid
-and tanh due to its simplicity and effectiveness in mitigating
-issues like vanishing gradients during training, thereby
-accelerating convergence and improving the efficiency
-of deep learning models.
-"""
-
-# Rectified Linear Unit
+from src.model.activations.activation import Activation
 
 
 class LeakyReLU(Activation):
+    """
+    Leaky ReLU (Leaky Rectified Linear Unit) is an activation
+    function commonly used in neural networks to address the
+    "dying ReLU" problem where neurons can sometimes get stuck
+    during training and always output zero. Unlike the standard
+    ReLU, which outputs zero for all negative inputs, Leaky ReLU
+    allows a small, non-zero gradient
+    (defined by a small constant multiplier) when the input is
+    negative. This helps maintain the flow of gradients through
+    the network, preventing neurons from becoming inactive and
+    improving model performance and convergence during training.
+    """
     def __init__(self, alpha=0.01):
         super().__init__()
         self.alpha = alpha
 
     def __call__(self, x: np.ndarray) -> np.ndarray:
         """
-        Apply the ReLU activation function with an optional alpha parameter.
+        Apply the ReLU activation function with
+            an optional alpha parameter.
 
         Args:
             x (np.ndarray): Input array.
@@ -43,7 +41,8 @@ class LeakyReLU(Activation):
             x (np.ndarray): Input array.
 
         Returns:
-            np.ndarray: Gradient array where elements are 1 if the input is greater than 0, else alpha.
+            np.ndarray: Gradient array where elements
+                are 1 if the input is greater than 0, else alpha.
         """
         return np.where(x > 0, 1, self.alpha)
 

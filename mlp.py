@@ -329,7 +329,8 @@ class MultiLayerPerceptron:
                 model.add(Dense(
                     units=layer.get('units'),
                     activation=layer.get('activation'),
-                    kernel_initializer=layer.get('kernel_initializer')
+                    kernel_initializer=layer.get('kernel_initializer'),
+                    kernel_regularizer=layer.get('kernel_regularizer')
                 ))
             elif layer_type == 'dropout':
                 model.add(Dropout(
@@ -574,6 +575,6 @@ if __name__ == "__main__":
     conf_path = "data/models/sigmoid_model.json"
 
     mlp = MultiLayerPerceptron()
-    # mlp.train_model(dataset_path=dpath, config_path=conf_path)
+    mlp.train_model(dataset_path=dpath, config_path=conf_path)
     # mlp.evaluate_model(model_path=mpath, data_path=dpath)
     # mlp.predict(model_path=mpath, data_path=dpath)

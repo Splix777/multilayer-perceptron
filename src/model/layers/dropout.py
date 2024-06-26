@@ -1,5 +1,6 @@
-from .layer import Layer
 import numpy as np
+
+from src.model.layers.layer import Layer
 
 
 class Dropout(Layer):
@@ -84,7 +85,6 @@ class Dropout(Layer):
     def get_weights(self) -> tuple[np.ndarray, np.ndarray]:
         """
         Get the weights of the layer.
-        InputLayer has no weights, so it returns an empty tuple.
 
         Returns:
             tuple: Empty tuple.
@@ -94,7 +94,6 @@ class Dropout(Layer):
     def set_weights(self, weights: np.ndarray, bias: np.ndarray) -> None:
         """
         Set the weights and biases of the layer.
-        InputLayer has no weights, so it does nothing.
 
         Args:
             weights (np.ndarray): Weights of the layer.

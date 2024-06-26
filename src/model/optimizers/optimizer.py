@@ -1,5 +1,6 @@
-from abc import ABC, abstractmethod
 import numpy as np
+
+from abc import ABC, abstractmethod
 
 
 class Optimizer(ABC):
@@ -17,7 +18,20 @@ class Optimizer(ABC):
         self._init_kwargs = kwargs
 
     @abstractmethod
-    def update(self, weights, biases, weights_gradient, bias_gradient):
+    def update(self, weights: np.ndarray, biases: np.ndarray,
+               weights_gradient: np.ndarray, biases_gradient: np.ndarray):
+        """
+        Update the weights and biases of the model.
+
+        Args:
+            weights (np.ndarray): Weights of the model.
+            biases (np.ndarray): Biases of the model.
+            weights_gradient (np.ndarray): Gradients of the weights.
+            biases_gradient (np.ndarray): Gradients of the biases.
+
+        Returns:
+            tuple: Updated weights and biases.
+        """
         pass
 
     @abstractmethod
@@ -29,53 +43,3 @@ class Optimizer(ABC):
             dict: Configuration of the optimizers.
         """
         pass
-
-    def set_learning_rate(self, learning_rate):
-        """
-        Set a new learning rate for the optimizers.
-
-        Args:
-            learning_rate (float): New learning rate to be set.
-        """
-        self.learning_rate = learning_rate
-
-    def get_learning_rate(self):
-        """
-        Get the current learning rate of the optimizers.
-
-        Returns:
-            float: Current learning rate.
-        """
-        return self.learning_rate
-
-    def set_parameters(self, **kwargs):
-        """
-        Set additional parameters specific to the optimizers.
-
-        Args:
-            **kwargs: Additional keyword arguments specific to the optimizers.
-        """
-        self._init_kwargs.update(kwargs)
-
-    def get_parameters(self):
-        """
-        Get the current parameters of the optimizers.
-
-        Returns:
-            dict: Current parameters of the optimizers.
-        """
-        return self._init_kwargs
-
-    @staticmethod
-    def clip_gradients(grads, threshold):
-        """
-        Clip gradients to prevent exploding gradients.
-
-        Args:
-            grads (list): List of gradients.
-            threshold (float): Maximum allowed gradient value.
-
-        Returns:
-            list: Clipped gradients.
-        """
-        return [np.clip(g, -threshold, threshold) for g in grads]

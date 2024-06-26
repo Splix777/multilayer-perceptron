@@ -1,25 +1,23 @@
-from ..activations.activation import Activation
 import numpy as np
 
-"""
-Sigmoid is an activation function commonly used in neural
-networks to map input values to a range between 0 and 1.
-It has a characteristic S-shaped curve that smoothly
-transforms any real-valued input to a probability-like output.
-Sigmoid is advantageous because it squashes the input to a
-manageable range, making it useful for binary classification
-tasks where the output represents probabilities. However,
-sigmoid suffers from the vanishing gradient problem,
-especially for very large or very small input values,
-which can slow down the learning process during training.
-Despite this limitation, sigmoid remains widely used in
-the output layer of binary classification models.
-"""
-
-# S-shaped Logistic Function
+from src.model.activations.activation import Activation
 
 
 class Sigmoid(Activation):
+    """
+    Sigmoid is an activation function commonly used in neural
+    networks to map input values to a range between 0 and 1.
+    It has a characteristic S-shaped curve that smoothly
+    transforms any real-valued input to a probability-like output.
+    Sigmoid is advantageous because it squashes the input to a
+    manageable range, making it useful for binary classification
+    tasks where the output represents probabilities. However,
+    sigmoid suffers from the vanishing gradient problem,
+    especially for very large or very small input values,
+    which can slow down the learning process during training.
+    Despite this limitation, sigmoid remains widely used in
+    the output layer of binary classification models.
+    """
     def __call__(self, x: np.ndarray) -> np.ndarray:
         """
         Apply the Sigmoid activation function.
@@ -40,7 +38,8 @@ class Sigmoid(Activation):
             x (np.ndarray): Input array.
 
         Returns:
-            np.ndarray: Gradient array where elements are the derivatives of Sigmoid.
+            np.ndarray: Gradient array where elements
+                are the derivatives of Sigmoid.
         """
         return x * (1 - x)
 

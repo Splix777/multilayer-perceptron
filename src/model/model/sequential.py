@@ -1,9 +1,7 @@
 import numpy as np
 import pandas as pd
 
-from pandas import DataFrame
 from sklearn.model_selection import train_test_split
-
 from .model import Model
 from ..layers.layer import Layer
 from ..layers.dropout import Dropout
@@ -24,13 +22,13 @@ class Sequential(Model):
         self.logger = Logger("Sequential")()
         self.losses = {'training': {}, 'validation': {}}
         self.accuracy = {'training': {}, 'validation': {}}
-        self.optimizer = None
         self.loss = None
         self._layers = None
         self.built = False
         self.callbacks = None
         self.stop_training = False
         self._dropout_active = True
+        self.training_mode = True
 
     # <-- Add Layers -->
     def add(self, layer: Layer) -> None:
@@ -89,7 +87,7 @@ class Sequential(Model):
             raise ValueError(
                 "You must add layers to the model before compiling.")
 
-        self.loss = self._set_loss_function(loss)
+        self.loss = self._set_loss_function(loss=loss)
 
         for layer in self._layers:
             if layer.trainable:
@@ -170,6 +168,8 @@ class Sequential(Model):
 
         for layer in self._layers:
             inputs = layer.call(inputs)
+            if layer.trainable and self.training_mode:
+                inputs = self._apply_regularization(layer, inputs)
 
         return inputs
 
@@ -192,16 +192,11 @@ class Sequential(Model):
         for layer in reversed(self._layers):
             loss_gradients = layer.backward(loss_gradients)
             if layer.trainable:
-                layer.weights, layer.bias = layer.optimizer.update(
-                    weights=layer.weights,
-                    bias=layer.bias,
-                    weights_gradients=layer.weights_gradients,
-                    bias_gradients=layer.bias_gradients
-                )
+                self._update_epoch_weights(layer)
 
     # <-- Training Methods -->
-    def fit(self, X: DataFrame, epochs: int, val_split: float = None,
-            val_data: DataFrame = None, callbacks: list[Callback] = None,
+    def fit(self, X: pd.DataFrame, epochs: int, val_split: float = None,
+            val_data: pd.DataFrame = None, callbacks: list[Callback] = None,
             batch_size: int = 32, verbose: bool = False) -> None:
         """
         Train the model using the provided training data
@@ -228,6 +223,8 @@ class Sequential(Model):
                               callbacks, batch_size, verbose)
 
         self._init_callbacks(callbacks)
+
+        self.training_mode = True
 
         X_trn, y_trn, X_val, y_val = self._split_data(X, val_split, val_data)
 
@@ -262,7 +259,7 @@ class Sequential(Model):
         for callback in callbacks:
             callback.on_train_end()
 
-    def predict(self, X: DataFrame) -> np.ndarray:
+    def predict(self, X: pd.DataFrame) -> np.ndarray:
         """
         Make predictions using the trained model.
 
@@ -275,15 +272,13 @@ class Sequential(Model):
         Raises:
             ValueError: If an input data type is incorrect.
         """
-        if not isinstance(X, DataFrame):
-            raise ValueError("X should be a pandas DataFrame or Series.")
-        self.dropout_active = False
+        self._deactivate_train_mode()
         X_eval, _ = self._one_hot_encoding(X)
         predictions = self.call(X_eval)
         self.dropout_active = True
         return predictions
 
-    def evaluate(self, X: DataFrame) -> tuple[float, float]:
+    def evaluate(self, X: pd.DataFrame) -> tuple[float, float]:
         """
         Evaluate the model using the provided data.
 
@@ -293,9 +288,7 @@ class Sequential(Model):
         Returns:
             tuple: Tuple of losses and accuracy.
         """
-        if not isinstance(X, DataFrame):
-            raise ValueError("X should be a pandas DataFrame.")
-        self.dropout_active = False
+        self._deactivate_train_mode()
         if self.model_output_units > 1:
             X_eval, y_eval = self._one_hot_encoding(X)
         else:
@@ -352,6 +345,46 @@ class Sequential(Model):
 
         return loss_value, accuracy
 
+    @staticmethod
+    def _update_epoch_weights(layer: Layer):
+        """
+        Update the weights of the layer for the current epoch.
+
+        Args:
+            layer (Layer): The layer to update the weights for.
+        """
+        if layer.kernel_regularizer:
+            layer.weights_gradients += layer.kernel_regularizer.gradient(
+                layer.weights)
+            layer.bias_gradients += layer.kernel_regularizer.gradient(
+                layer.bias)
+        layer.weights, layer.bias = layer.optimizer.update(
+            weights=layer.weights,
+            bias=layer.bias,
+            weights_gradients=layer.weights_gradients,
+            bias_gradients=layer.bias_gradients
+        )
+
+    @staticmethod
+    def _apply_regularization(layer: Layer, inputs: np.ndarray) -> np.ndarray:
+        """
+        Apply regularization to the layer weights.
+
+        Args:
+            layer (Layer): The layer to apply regularization to.
+            inputs (np.ndarray): Input data or features.
+        """
+        if layer.kernel_regularizer:
+            regularization_penalty = layer.kernel_regularizer(
+                layer.weights)
+            inputs += regularization_penalty
+
+        return inputs
+
+    def _deactivate_train_mode(self):
+        self.dropout_active = False
+        self.training_mode = False
+
     def _eval_validation_data(self, X_val: np.ndarray, y_val: np.ndarray):
         """
         Test the model on the validation data.
@@ -363,7 +396,7 @@ class Sequential(Model):
         Returns:
             Tuple[float, float]: Validation loss and accuracy.
         """
-        self.dropout_active = False
+        self._deactivate_train_mode()
         val_pred = self.call(X_val)
         val_loss = self.loss(y_val, val_pred)
 
@@ -444,8 +477,8 @@ class Sequential(Model):
 
         self.callbacks = callbacks
 
-    def _validate_inputs(self, X: DataFrame, epochs: int, val_split: float,
-                         val_data: DataFrame, callbacks: list[Callback],
+    def _validate_inputs(self, X: pd.DataFrame, epochs: int, val_split: float,
+                         val_data: pd.DataFrame, callbacks: list[Callback],
                          batch_size: int, verbose: bool):
         """
         Validate inputs for the fit method.
@@ -453,9 +486,9 @@ class Sequential(Model):
         Raises:
             ValueError: If input data types or values are incorrect.
         """
-        if not isinstance(X, DataFrame):
+        if not isinstance(X, pd.DataFrame):
             raise ValueError("X should be a pandas DataFrame.")
-        if val_data is not None and not isinstance(val_data, DataFrame):
+        if val_data is not None and not isinstance(val_data, pd.DataFrame):
             raise ValueError("val_data should be a pandas DataFrame.")
         if val_data is None and val_split is None:
             raise ValueError("You must provide either val_split or val_data.")
@@ -480,7 +513,8 @@ class Sequential(Model):
         self.verbose = verbose
 
     # <-- Data Preparation -->
-    def _split_data(self, X: DataFrame, val_split: float, val_data: DataFrame):
+    def _split_data(self, X: pd.DataFrame, val_split: float,
+                    val_data: pd.DataFrame):
         """
         Split the data into training and validation sets.
 
@@ -529,7 +563,7 @@ class Sequential(Model):
 
     # <-- Hot-Encode / Label Encoding -->
     @staticmethod
-    def _one_hot_encoding(X: DataFrame, num_classes: int = None) -> tuple:
+    def _one_hot_encoding(X: pd.DataFrame, num_classes: int = None) -> tuple:
         """
         Prepare the data for training.
 
@@ -564,7 +598,7 @@ class Sequential(Model):
         return X_feature, y_one_hot
 
     @staticmethod
-    def _label_encoding(data: DataFrame) -> tuple:
+    def _label_encoding(data: pd.DataFrame) -> tuple:
         """
         Get the labels from the DataFrame.
 

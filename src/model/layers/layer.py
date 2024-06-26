@@ -1,6 +1,6 @@
-import json
-from abc import ABC, abstractmethod
 import numpy as np
+
+from abc import ABC, abstractmethod
 
 
 class Layer(ABC):
@@ -24,6 +24,10 @@ class Layer(ABC):
         self._output_shape = None
         self.weights_gradients = None
         self.bias_gradients = None
+        self.kernel_initializer = None
+        self.kernel_regularizer = None
+        self.bias_initializer = None
+        self.optimizer = None
 
     def __str__(self) -> str:
         return (f"{self.__class__.__name__}(trainable={self.trainable}, "
@@ -80,6 +84,16 @@ class Layer(ABC):
 
     @abstractmethod
     def backward(self, loss_gradients: np.ndarray) -> np.ndarray:
+        """
+        Perform the backward pass.
+
+        Args:
+            loss_gradients (np.ndarray): Gradients of the loss.
+
+        Returns:
+            np.ndarray: Gradients of the loss with respect
+                to the inputs.
+        """
         pass
 
     @property

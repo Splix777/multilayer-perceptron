@@ -1,6 +1,6 @@
 import numpy as np
 
-from .callback import Callback
+from src.model.callbacks.callback import Callback
 
 
 class EarlyStopping(Callback):
@@ -29,9 +29,29 @@ class EarlyStopping(Callback):
         self.model = model
 
     def on_epoch_start(self, epoch: int, logs: dict = None) -> None:
+        """
+        Called at the start of an epoch.
+
+        Args:
+            epoch (int): Current epoch
+            logs (dict): Dictionary of metrics
+
+        Returns:
+            None
+        """
         pass
 
     def on_epoch_end(self, epoch: int, logs: dict = None) -> None:
+        """
+        Called at the end of an epoch.
+
+        Args:
+            epoch (int): Current epoch
+            logs (dict): Dictionary of metrics
+
+        Returns:
+            None
+        """
         current = logs.get(self.monitor)
         if current is None:
             raise ValueError(f"Early stopping requires "
@@ -56,12 +76,30 @@ class EarlyStopping(Callback):
                     print(f"Early stopping at epoch {epoch + 1}")
 
     def on_train_begin(self, logs: dict = None) -> None:
+        """
+        Called at the start of training.
+
+        Args:
+            logs (dict): Dictionary of metrics
+
+        Returns:
+            None
+        """
         self.best = np.inf
         self.wait = 0
         self.stopped_epoch = 0
         self.best_weights = None
 
     def on_train_end(self, logs: dict = None) -> None:
+        """
+        Called at the end of training.
+
+        Args:
+            logs (dict): Dictionary of metrics
+
+        Returns:
+            None
+        """
         if self.verbose:
             print(f"Restoring model weights from the end of the best epoch"
                   f"({self.best_epoch + 1}).")

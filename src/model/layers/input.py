@@ -1,5 +1,4 @@
 import numpy as np
-# from .layer import Layer
 
 from src.model.layers.layer import Layer
 
@@ -60,6 +59,18 @@ class InputLayer(Layer):
         return inputs
 
     def backward(self, loss_gradients: np.ndarray) -> np.ndarray:
+        """
+        Perform the backward pass.
+        For InputLayer, it simply returns the loss_gradients.
+
+        Args:
+            loss_gradients (np.ndarray): Gradients of the loss
+                with respect to the output of the layer.
+
+        Returns:
+            np.ndarray: Gradients of the loss
+                with respect to the input.
+        """
         if not self.built:
             raise ValueError("The layer has not been built yet.")
 
@@ -112,10 +123,4 @@ class InputLayer(Layer):
             bias (np.ndarray): Bias of the layer.
         """
         pass
-
-
-if __name__ == "__main__":
-    input_layer = InputLayer(input_shape=(30,))
-    input_layer.build(input_shape=(30,))
-    print(input_layer.output_shape)
 
