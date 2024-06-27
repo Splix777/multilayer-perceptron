@@ -79,10 +79,12 @@ class CategoricalCrossEntropy(Loss):
 
     def get_config(self) -> dict:
         """
-        Get the configuration of the Categorical Cross-Entropy losses function.
+        Get the configuration of the Categorical
+        Cross-Entropy losses function.
 
         Returns:
-            dict: Configuration of the Categorical Cross-Entropy losses function.
+            dict: Configuration of the Categorical
+                Cross-Entropy losses function.
         """
         return {
             'name': self.__class__.__name__

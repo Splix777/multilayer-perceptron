@@ -52,7 +52,8 @@ class Plotter:
         Plot the distribution of a specified column in the data.
 
         Args:
-            column (str): The column name for which the distribution is to be plotted.
+            column (str): The column name for which the
+                distribution is to be plotted.
 
         Returns:
             None
@@ -152,7 +153,11 @@ class Plotter:
         plt.plot(self.data['val_loss'], label='Validation Loss')
         plt.xlabel('Epoch')
         plt.ylabel('Loss')
-        plt.title(f'Training and Validation Loss for {model_name}')
+        min_val_loss = min(self.data['val_loss'])
+        plt.title(
+            f'Training and Validation Loss for {model_name} - '
+            f'Min Validation Loss: {min_val_loss:.4f}'
+        )
         plt.legend()
         plt.grid(True)
         plt.legend()
@@ -171,7 +176,9 @@ class Plotter:
         plt.plot(self.data['val_accuracy'], label='Validation Accuracy')
         plt.xlabel('Epoch')
         plt.ylabel('Accuracy')
-        plt.title(f'Training and Validation Accuracy for {model_name}')
+        max_val_acc_percent = max(self.data['val_accuracy']) * 100
+        plt.title(f'Training and Validation Accuracy for {model_name} - '
+                  f'Max Validation Accuracy: {max_val_acc_percent:.0f}%')
         plt.legend()
         plt.grid(True)
 

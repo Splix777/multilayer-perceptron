@@ -123,4 +123,3 @@ class InputLayer(Layer):
             bias (np.ndarray): Bias of the layer.
         """
         pass
-

@@ -2,17 +2,17 @@ import numpy as np
 import pandas as pd
 
 from sklearn.model_selection import train_test_split
-from .model import Model
-from ..layers.layer import Layer
-from ..layers.dropout import Dropout
-from ..layers.input import InputLayer
-from ..optimizers.optimizer import Optimizer
-from ..optimizers.adam import AdamOptimizer
-from ..optimizers.rms_prop import RMSpropOptimizer
-from ..losses.loss import Loss
-from ..losses.binary_cross_entropy import BinaryCrossEntropy
-from ..losses.categorical_cross_entropy import CategoricalCrossEntropy
-from ..callbacks.callback import Callback
+from src.model.model.model import Model
+from src.model.layers.layer import Layer
+from src.model.layers.dropout import Dropout
+from src.model.layers.input import InputLayer
+from src.model.optimizers.optimizer import Optimizer
+from src.model.optimizers.adam import AdamOptimizer
+from src.model.optimizers.rms_prop import RMSpropOptimizer
+from src.model.losses.loss import Loss
+from src.model.losses.binary_cross_entropy import BinaryCrossEntropy
+from src.model.losses.categorical_cross_entropy import CategoricalCrossEntropy
+from src.model.callbacks.callback import Callback
 from src.utils.logger import Logger
 
 
@@ -362,8 +362,7 @@ class Sequential(Model):
             weights=layer.weights,
             bias=layer.bias,
             weights_gradients=layer.weights_gradients,
-            bias_gradients=layer.bias_gradients
-        )
+            bias_gradients=layer.bias_gradients)
 
     @staticmethod
     def _apply_regularization(layer: Layer, inputs: np.ndarray) -> np.ndarray:
@@ -382,8 +381,18 @@ class Sequential(Model):
         return inputs
 
     def _deactivate_train_mode(self):
+        """
+        Deactivate the training mode.
+        """
         self.dropout_active = False
         self.training_mode = False
+
+    def _activate_train_mode(self):
+        """
+        Activate the training mode.
+        """
+        self.dropout_active = True
+        self.training_mode = True
 
     def _eval_validation_data(self, X_val: np.ndarray, y_val: np.ndarray):
         """
@@ -405,7 +414,7 @@ class Sequential(Model):
         else:
             val_accuracy = self._binary_accuracy(y_val, val_pred)
 
-        self.dropout_active = True
+        self._activate_train_mode()
         return val_loss, val_accuracy
 
     def _binary_accuracy(self, y_true: np.ndarray, y_pred: np.ndarray):
@@ -520,7 +529,8 @@ class Sequential(Model):
 
         Args:
             X (DataFrame): Input features data.
-            val_split (float): Fraction of the training data to be used for validation.
+            val_split (float): Fraction of the training data
+                to be used for validation.
             val_data (DataFrame): Validation features data.
 
         Returns:

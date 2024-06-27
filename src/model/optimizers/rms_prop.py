@@ -42,6 +42,7 @@ class RMSpropOptimizer(Optimizer):
         useful when dealing with sparse gradients or non-stationary
         objectives.
     """
+
     def __init__(self, rho=0.9, epsilon=1e-8, learning_rate=0.001):
         super().__init__()
         self.rho = rho
@@ -91,16 +92,16 @@ class RMSpropOptimizer(Optimizer):
                                  + (1 - self.rho)
                                  * (bias_gradients ** 2))
 
-        updated_weights = (weights
-                           - self.learning_rate
-                           * weights_gradients
-                           / (np.sqrt(self.accumulated_weights) + self.epsilon))
-        updated_biases = (bias
+        updated_weight = (weights
                           - self.learning_rate
-                          * bias_gradients
-                          / (np.sqrt(self.accumulated_bias) + self.epsilon))
+                          * weights_gradients
+                          / (np.sqrt(self.accumulated_weights) + self.epsilon))
+        updated_bias = (bias
+                        - self.learning_rate
+                        * bias_gradients
+                        / (np.sqrt(self.accumulated_bias) + self.epsilon))
 
-        return updated_weights, updated_biases
+        return updated_weight, updated_bias
 
     def get_config(self) -> dict:
         """

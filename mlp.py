@@ -370,7 +370,7 @@ class MultiLayerPerceptron:
             val_data=val_data,
             callbacks=[EarlyStopping(
                 monitor='val_loss',
-                patience=15,
+                patience=300,
                 verbose=True
             )],
             batch_size=config.get('batch_size', 32),
@@ -572,6 +572,7 @@ class MultiLayerPerceptron:
 if __name__ == "__main__":
     dpath = "data/csv/data.csv"
     mpath = "data/models/softmax_model.pkl"
+    # conf_path = "data/models/softmax_model.json"
     conf_path = "data/models/sigmoid_model.json"
 
     mlp = MultiLayerPerceptron()

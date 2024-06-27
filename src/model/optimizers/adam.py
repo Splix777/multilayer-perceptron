@@ -82,41 +82,29 @@ class AdamOptimizer(Optimizer):
         Returns:
             tuple: Updated weights and biases.
         """
-        if self.m_weights is None:
+        if self.m_weights is None or self.v_weights is None:
             self.initialize_moments(weights.shape, bias.shape)
 
         self.iterations += 1
 
-        self.m_weights = (self.beta1
-                          * self.m_weights
-                          + (1 - self.beta1)
-                          * weights_gradients)
-        self.m_bias = (self.beta1
-                       * self.m_bias
-                       + (1 - self.beta1)
-                       * bias_gradients)
-
-        self.v_weights = (self.beta2
-                          * self.v_weights
-                          + (1 - self.beta2)
-                          * (weights_gradients ** 2))
-        self.v_bias = (self.beta2
-                       * self.v_bias
-                       + (1 - self.beta2)
-                       * (bias_gradients ** 2))
-
+        # Update weights moments
+        self.m_weights = (self.beta1 * self.m_weights
+                          + (1 - self.beta1) * weights_gradients)
+        self.v_weights = (self.beta2 * self.v_weights
+                          + (1 - self.beta2) * (weights_gradients ** 2))
         m_hat_weights = self.m_weights / (1 - self.beta1 ** self.iterations)
         v_hat_weights = self.v_weights / (1 - self.beta2 ** self.iterations)
+        updated_weights = (weights - self.learning_rate * m_hat_weights
+                           / (np.sqrt(v_hat_weights) + self.epsilon))
+
+        # Update biases moments
+        self.m_bias = (self.beta1 * self.m_bias
+                       + (1 - self.beta1) * bias_gradients)
+        self.v_bias = (self.beta2 * self.v_bias
+                       + (1 - self.beta2) * (bias_gradients ** 2))
         m_hat_bias = self.m_bias / (1 - self.beta1 ** self.iterations)
         v_hat_bias = self.v_bias / (1 - self.beta2 ** self.iterations)
-
-        updated_weights = (weights
-                           - self.learning_rate
-                           * m_hat_weights
-                           / (np.sqrt(v_hat_weights) + self.epsilon))
-        updated_biases = (bias
-                          - self.learning_rate
-                          * m_hat_bias
+        updated_biases = (bias - self.learning_rate * m_hat_bias
                           / (np.sqrt(v_hat_bias) + self.epsilon))
 
         return updated_weights, updated_biases
