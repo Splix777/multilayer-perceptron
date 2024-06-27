@@ -196,7 +196,7 @@ details further on. Below is a short breakdown of each model:
     - `sigmoid` activation function
     - `glorot_uniform` kernel initializer
   - Optimizer:
-    - `rmsprop` optimizer (Adaptive Moment Estimation)
+    - `rmsprop` optimizer (Root Mean Square Propagation)
     - learning rate of 0.00001
   - Loss:
     - `binary_crossentropy` loss function (Binary Cross Entropy)
@@ -263,6 +263,8 @@ In summary, plotting the data allows to quickly identify patterns, trends, and r
 
 The `mlp.py` file contains the implementation of the `Multilayer Perceptron` class. This class is responsible for creating the neural network, training it, evaluating, and making predictions. The class is designed to be flexible and customizable, allowing you to configure the network architecture, activation functions, loss functions, and optimization algorithms.
 
+---
+
 ### Data Preprocessing
 
 Before training the model, we need to preprocess the data. This involves several key steps:
@@ -273,6 +275,8 @@ Before training the model, we need to preprocess the data. This involves several
 - **Data Normalization:** Normalizing the data to ensure that the features have a mean of 0 and a standard deviation of 1. This can help improve the convergence of the optimization algorithm.
 
 While training the model, we need a validation set of data. This will allow us to test the model performance on unseen data. The validation set is used to tune the hyperparameters of the model and prevent overfitting.
+
+---
 
 ### Model
 
@@ -323,11 +327,19 @@ The `Multilayer Perceptron` class allows you to configure the network architectu
 
 </details>
 
+---
+
 ### Training
+
+---
 
 ### Evaluation
 
+---
+
 ### Predictions
+
+---
 
 ### Conclusion
 
