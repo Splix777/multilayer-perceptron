@@ -1,5 +1,3 @@
-Project in progress, check back soon for updates...
-
 <h1 align="center">Multilayer-Perceptron</h1>
 
 
