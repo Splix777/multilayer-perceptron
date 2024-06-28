@@ -231,7 +231,7 @@ Data Distribution:
 When training models, you want to make sure that the data is balanced. If the data is not balanced, the model may be biased towards the majority class. Below is a plot of the data distribution:
 
 <div align="center">
-<img src="data/plots/data_distribution.png" alt="Plot" width="100%">
+<img src="images/data_distribution.png" alt="Plot" width="100%">
 </div>
 
 Pairplot:
@@ -241,7 +241,7 @@ Another factor to consider is the relationship between features. A pairplot allo
 Below we see there are strong correlations between some features, which may indicate multicollinearity. This can be problematic for some models, such as linear regression, but neural networks are generally robust to multi-collinearity.
 
 <div align="center">
-<img src="data/plots/pairplot.png" alt="Plot" width="100%">
+<img src="images/pairplot.png" alt="Plot" width="100%">
 </div>
 
 Correlation Heatmap:
@@ -249,7 +249,7 @@ Correlation Heatmap:
 A correlation heatmap provides a visual representation of the correlation between different features in the dataset. This can help identify which features are most strongly correlated with the target variable and with each other.
 
 <div align="center">
-<img src="data/plots/correlation_heatmap.png" alt="Plot" width="100%">
+<img src="images/correlation_heatmap.png" alt="Plot" width="100%">
 </div>
 
 
@@ -327,21 +327,72 @@ The `Multilayer Perceptron` class allows you to configure the network architectu
 
 </details>
 
+Taking a closer look at our `Sequential` class, it was design to follow the same structure as the `Keras` library. The `Sequential` class allows you to add layers to the network in sequence, specifying the number of neurons, activation function, and other parameters for each layer. You can also compile the model with a loss function, optimization algorithm, and metrics to monitor during training. 
+
+This modularity allows you to easily experiment with different network architectures, activation functions, and optimization algorithms to find the best configuration for your problem.
+
 ---
 
 ### Training
+
+At the heart of the training process is the `fit` method, which takes the training data and labels as input and updates the weights of the network using an optimization algorithm. The `fit` method iterates over the training data for a specified number of epochs, updating the weights based on the loss function and the gradients of the network.
+
+Let's break down the process of training the model:
+
+- **Shuffling the Data:** The training data is shuffled before each epoch to prevent the model from memorizing the order of the examples.
+
+- **Splitting the Data into Batches:** The training data is split into batches of a specified size, which allows the model to update the weights more frequently and prevents memory issues.
+
+- **Forward Propagation:** The input data is passed through the network, and the output of each layer is computed using the current weights.
+  -  **Weighted Sum:** The weighted sum of the inputs and weights is computed for each neuron in the layer.
+  - **Activation Function:** The activation function is applied to the weighted sum to compute the output of the neuron.
+  - **Regularization:** Regularization techniques such as L2 regularization can be applied to the weights to prevent overfitting.
+- **Loss Calculation:** The loss function is computed based on the output of the network and the true labels.
+- **Loss Gradient:** The gradient of the loss function with respect to the weights is computed using backpropagation.
+- **Backpropagation:** The gradients are propagated backward through the network, updating the weights of each layer based on the loss gradient.
+  - **Gradient Descent:** The weights are updated using an optimization algorithm such as Adam or RMSprop.
+  - **Learning Rate:** The learning rate determines how much the weights are updated during each iteration.
+- **Validation:** The model is evaluated on the validation data after each epoch to monitor its performance and prevent overfitting.
+- **Callbacks:** Callbacks such as early stopping can be used to stop training if the model stops improving.
+
+The training process continues for a specified number of epochs, updating the weights of the network based on the loss function and the gradients of the network. After training is complete, the model can be evaluated on the test data to assess its performance.
+
+<details>
+<summary><strong>Click to reveal sample training results</strong></summary>
+
+<div align="center">
+<img src="images/softmax_model_accuracy.png" alt="Training Results" width="100%">
+<img src="images/softmax_model_loss.png" alt="Training Results" width="100%">
+</div>
+
+</details>
 
 ---
 
 ### Evaluation
 
+After training the model, we need to evaluate its performance on the test data. This involves several key steps:
+
+- **Prediction:** Making predictions on the test data using the trained model.
+- **Metrics:** Calculating evaluation metrics such as accuracy, precision, recall, and F1 score to assess the model's performance.
+
+The evaluation metrics provide insights into how well the model is performing and can help identify areas for improvement. By comparing the model's predictions to the true labels, we can determine the model's accuracy and identify any patterns or trends in the data.
+
 ---
 
 ### Predictions
 
+Once the model has been trained and evaluated, we can use it to make predictions on new data. This involves passing the input data through the network and computing the output of the model. The output of the model can be used to make predictions on new examples and classify them into different categories.
+
 ---
 
 ### Conclusion
+
+In this project, we implemented a `Multilayer Perceptron` from scratch using Python and NumPy. We explored the key concepts of neural networks, including activation functions, loss functions, and optimization algorithms. We trained the model on a breast cancer dataset and evaluated its performance using various metrics.
+
+The project provided a hands-on introduction to artificial neural networks and allowed us to gain a deeper understanding of the underlying mechanisms of neural networks. By implementing the algorithms at the heart of the training process, we were able to explore the mathematical concepts behind neural networks and gain practical experience in building and training models.
+
+I hope you enjoyed this project and found it informative. Feel free to experiment with different network architectures, activation functions, and optimization algorithms to further explore the capabilities of neural networks. Thank you for following along, and I look forward to seeing you in the next project!
 
 
 
