@@ -537,6 +537,7 @@ class MultiLayerPerceptron:
         )
 
         predictions = model.predict(X=processed_data)
+
         labeled_predictions = self._predictions_labels(
             predictions=predictions,
             labels=labels
@@ -558,8 +559,11 @@ class MultiLayerPerceptron:
         Returns:
             list: Labeled predictions.
         """
-        if len(predictions.shape) > 1:
-            predictions = np.argmax(predictions, axis=1)
+        if predictions.ndim == 2:
+            if predictions.shape[1] == 1:
+                predictions = (predictions >= 0.5).astype(int).flatten()
+            else:
+                predictions = np.argmax(predictions, axis=1)
 
         labeled_predictions = []
         for pred in predictions:
