@@ -550,7 +550,9 @@ class MultiLayerPerceptron:
     @staticmethod
     def _predictions_labels(predictions: np.ndarray, labels: dict) -> list:
         """
-        Convert the model predictions to target labels.
+        Convert the model predictions to target labels. Depending
+        on the model output shape, the predictions are either
+        converted to binary labels or to the corresponding labels.
 
         Args:
             predictions (np.ndarray): Model predictions.
