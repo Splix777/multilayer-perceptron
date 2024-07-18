@@ -17,13 +17,13 @@
     },
     {
       "type": "dense",
-      "units": 32,
-      "activation": "prelu",
-      "kernel_initializer": "he_normal"
+      "units": 16,
+      "activation": "tanh",
+      "kernel_initializer": "glorot_uniform"
     },
     {
       "type": "dropout",
-      "rate": 0.4
+      "rate": 0.3
     },
     {
       "type": "dense",
@@ -34,9 +34,9 @@
   ],
     "optimizer": {
         "type": "adam",
-        "learning_rate": 0.00001
+        "learning_rate": 0.0001
     },
     "loss": "binary_crossentropy",
-    "batch_size": 256,
-    "epochs": 100000
+    "batch_size": 512,
+    "epochs": 10000
 }

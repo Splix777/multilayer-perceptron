@@ -429,7 +429,6 @@ class MultiLayerPerceptron:
                 data normalization.
             labels (dict): Target labels.
             config (dict): Model configuration.
-            val_data (pd.DataFrame): Validation data.
 
         Returns:
             str: Name of the saved model.
@@ -544,6 +543,8 @@ class MultiLayerPerceptron:
         )
 
         self.logger.info(f"Predictions: {labeled_predictions}")
+        loss, accuracy = model.evaluate(X=processed_data)
+        print(f"Loss: {loss}, Accuracy: {accuracy}")
 
         return labeled_predictions
 
@@ -576,12 +577,14 @@ class MultiLayerPerceptron:
 
 
 if __name__ == "__main__":
-    dpath = "data/csv/data.csv"
+    train_path = "data/csv/data_training.csv"
+    test_path = "data/csv/data_test.csv"
     mpath = "data/models/softmax_model.pkl"
-    # conf_path = "data/models/softmax_model.json"
-    conf_path = "data/models/sigmoid_model.json"
+    conf_path = "data/models/softmax_model.json"
+    # mpath = "data/models/sigmoid_model.pkl"
+    # conf_path = "data/models/sigmoid_model.json"
 
     mlp = MultiLayerPerceptron()
-    mlp.train_model(dataset_path=dpath, config_path=conf_path)
+    mlp.train_model(dataset_path=train_path, config_path=conf_path)
     # mlp.evaluate_model(model_path=mpath, data_path=dpath)
-    # mlp.predict(model_path=mpath, data_path=dpath)
+    print(mlp.predict(model_path=mpath, data_path=test_path))

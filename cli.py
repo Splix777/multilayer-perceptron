@@ -93,6 +93,9 @@ def train_model(mlp: MultiLayerPerceptron):
         "Do you want to configure a new model? (y/n): ").lower()
     if configure_new == 'y':
         conf_path = configure_new_model()
+    if not conf_path:
+        print("No model configuration provided. Exiting...")
+        sys.exit(0)
 
     results = mlp.train_model(dataset_path=data_path, config_path=conf_path)
     print(results)

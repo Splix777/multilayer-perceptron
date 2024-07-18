@@ -13,17 +13,17 @@
     },
     {
       "type": "dropout",
-      "rate": 0.1
+      "rate": 0.2
     },
     {
       "type": "dense",
       "units": 32,
-      "activation": "prelu",
+      "activation": "lrelu",
       "kernel_initializer": "he_normal"
     },
     {
       "type": "dropout",
-      "rate": 0.2
+      "rate": 0.3
     },
     {
       "type": "dense",
@@ -34,9 +34,9 @@
   ],
     "optimizer": {
         "type": "rmsprop",
-        "learning_rate": 0.00001
+        "learning_rate": 0.0001
     },
     "loss": "binary_crossentropy",
-    "batch_size": 128,
+    "batch_size": 512,
     "epochs": 100000
 }
