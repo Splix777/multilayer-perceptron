@@ -17,7 +17,7 @@ class Dense(Layer):
                  units: int,
                  activation: str = None,
                  kernel_initializer: str = 'glorot_uniform',
-                 bias_initializer: str = 'zeros',
+                 bias_initializer: str = 'ones',
                  kernel_regularizer: str = None,
                  **kwargs):
         """

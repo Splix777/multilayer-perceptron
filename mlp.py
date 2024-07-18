@@ -370,7 +370,7 @@ class MultiLayerPerceptron:
             val_data=val_data,
             callbacks=[EarlyStopping(
                 monitor='val_loss',
-                patience=300,
+                patience=1000,
                 verbose=True
             )],
             batch_size=config.get('batch_size', 32),
