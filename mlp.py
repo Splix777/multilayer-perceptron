@@ -80,7 +80,7 @@ class MultiLayerPerceptron:
         """
         self.logger.info("Training model...")
         data = self._create_labeled_data(dataset_path=dataset_path)
-        self._plot_data(data=data)
+        # self._plot_data(data=data)
         train_df, val_df, scaler, labels = self._preprocess_data(data=data)
         model_config = self._load_model_config(config_path=config_path)
         model = self._build_model(model_config=model_config)
