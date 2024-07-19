@@ -579,10 +579,10 @@ class MultiLayerPerceptron:
 if __name__ == "__main__":
     train_path = "data/csv/data_training.csv"
     test_path = "data/csv/data_test.csv"
-    mpath = "data/models/softmax_model.pkl"
-    conf_path = "data/models/softmax_model.json"
-    # mpath = "data/models/sigmoid_model.pkl"
-    # conf_path = "data/models/sigmoid_model.json"
+    # mpath = "data/models/softmax_model.pkl"
+    # conf_path = "data/models/softmax_model.json"
+    mpath = "data/models/sigmoid_model.pkl"
+    conf_path = "data/models/sigmoid_model.json"
 
     mlp = MultiLayerPerceptron()
     mlp.train_model(dataset_path=train_path, config_path=conf_path)

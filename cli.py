@@ -82,15 +82,17 @@ def train_model(mlp: MultiLayerPerceptron):
         "Do you want to load a custom model configuration? (y/n): ").lower()
 
     conf_path = None
+    configure_new = None
     if model_config == 'y':
         conf_path = input(
             "Please provide a path to the model configuration file: ")
         if not os.path.exists(conf_path) or not conf_path.endswith('.json'):
             print("File does not exist. Exiting...")
             sys.exit(0)
+    else:
+        configure_new = input(
+            "Do you want to configure a new model? (y/n): ").lower()
 
-    configure_new = input(
-        "Do you want to configure a new model? (y/n): ").lower()
     if configure_new == 'y':
         conf_path = configure_new_model()
     if not conf_path:
