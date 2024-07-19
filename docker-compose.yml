@@ -1,0 +1,10 @@
+services:
+  multilayer_perceptron:
+    image: multilayer_perceptron
+    build:
+      context: .
+    volumes:
+      - type: bind
+        source: .
+        target: /app/
+    command: ["/bin/bash"]
