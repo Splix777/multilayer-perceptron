@@ -544,7 +544,7 @@ class MultiLayerPerceptron:
 
         self.logger.info(f"Predictions: {labeled_predictions}")
         loss, accuracy = model.evaluate(X=processed_data)
-        print(f"Loss: {loss}, Accuracy: {accuracy}")
+        # print(f"Loss: {loss}, Accuracy: {accuracy}")
 
         return labeled_predictions
 
@@ -588,3 +588,4 @@ if __name__ == "__main__":
     mlp.train_model(dataset_path=train_path, config_path=conf_path)
     # mlp.evaluate_model(model_path=mpath, data_path=dpath)
     print(mlp.predict(model_path=mpath, data_path=test_path))
+    print(mlp.evaluate_model(model_path=mpath, data_path=test_path))

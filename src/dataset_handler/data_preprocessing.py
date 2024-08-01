@@ -74,13 +74,8 @@ class DataPreprocessor:
         encoded_labels = self.label_encoder.transform(original_labels)
         labels = dict(zip(original_labels, encoded_labels))
 
-        if scaler is None:
-            scaler = StandardScaler()
-            df = self.fit_transform(df, label_col, scaler)
-        else:
-            df = self.transform(df, label_col, scaler)
-
         if val_split == 0:
+            df, scaler = self.standardize_data(df, label_col, scaler)
             return df, None, scaler, labels
 
         train_df, val_df = train_test_split(
@@ -92,7 +87,30 @@ class DataPreprocessor:
         self.logger.info(f"Created training and validation sets with "
                          f"{train_df.shape[0]} and {val_df.shape[0]} samples.")
 
+        train_df, scaler = self.standardize_data(train_df, label_col, scaler)
+        val_df, _ = self.standardize_data(val_df, label_col, scaler)
+
         return train_df, val_df, scaler, labels
+
+    def standardize_data(self, df: pd.DataFrame, label_col: str,
+                         scaler: StandardScaler):
+        """
+        Standardize the data.
+
+        Args:
+            df (pd.DataFrame): DataFrame to standardize.
+            label_col (str): Column name of the labels (target column).
+            scaler (StandardScaler): Scaler to standardize the features.
+
+        Returns:
+            pd.DataFrame: Standardized DataFrame.
+        """
+        if scaler is None:
+            scaler = StandardScaler()
+            df = self.fit_transform(df, label_col, scaler)
+        else:
+            df = self.transform(df, label_col, scaler)
+        return df, scaler
 
     @staticmethod
     def fit_transform(df: pd.DataFrame, label_col: str,
