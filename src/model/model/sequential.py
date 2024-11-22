@@ -68,7 +68,7 @@ class Sequential(Model):
                          f"Output Shape: {layer.output_shape}")
 
     # <-- Compile Model -->
-    def compile(self, loss: str, optimizer: str, learning_rate: int = 0.001):
+    def compile(self, loss: str, optimizer: str, learning_rate: float = 0.001):
         """
         Configure the model for training.
 

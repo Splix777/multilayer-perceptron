@@ -1,13 +1,14 @@
 import time
+from typing import Callable, Tuple, Type, Any
 from json import JSONDecodeError
 from functools import wraps
-
 from .logger import Logger
 
-logger = Logger("Errors")()
+# Logger setup
+logger: Logger = Logger("decorators")
 
 # List of exceptions to handle
-KNOWN_EXCEPTIONS = [
+KNOWN_EXCEPTIONS: Tuple[Type[Exception], ...] = (
     ValueError,
     KeyError,
     TypeError,
@@ -15,105 +16,77 @@ KNOWN_EXCEPTIONS = [
     FileNotFoundError,
     RuntimeError,
     AttributeError,
-    JSONDecodeError
-]
+    JSONDecodeError,
+    OSError
+)
 
-
-def error_handler(handle_exceptions=(), suppress: bool = False) -> callable:
+def error_handler(
+        exceptions_to_handle: Tuple[Type[Exception], ...] = (),
+        suppress: bool = False) -> Callable:
     """
     Decorator to handle exceptions in the decorated method.
-
-    Args:
-        handle_exceptions (tuple): A tuple of exception
-            types to handle.
-        suppress (bool): If True, suppress the exception
-            after logging it.
-
-    Returns:
-        function: The decorated method.
     """
-    def decorator(method: callable) -> callable:
-        """
-        Decorator to handle exceptions in the decorated method.
+    if not exceptions_to_handle:
+        exceptions_to_handle = KNOWN_EXCEPTIONS
 
-        Args:
-            method (function): The method to decorate.
-
-        Returns:
-            function: The decorated method.
-        """
+    def decorator(method: Callable[..., Any]) -> Callable[..., Any]:
         @wraps(method)
-        def wrapper(*args, **kwargs) -> any:
-            """
-            Wrapper function to handle exceptions.
-
-            Args:
-                *args: Variable length argument list.
-                **kwargs: Arbitrary keyword arguments.
-
-            Raises:
-                Exception: If suppress is False.
-
-            Returns:
-                Any: The result of the decorated method.
-            """
+        def wrapper(*args: Tuple, **kwargs: dict) -> Any:
             try:
                 return method(*args, **kwargs)
-            except handle_exceptions as e:
-                if type(e) in KNOWN_EXCEPTIONS:
-                    e_message = f"{type(e).__name__} in {method.__name__}: {e}"
-                else:
-                    e_message = f"Error in {method.__name__}: {e}"
 
-                print(e_message)
-                logger.error(e_message, exc_info=True)
+            except exceptions_to_handle as e:
+                msg: str = (
+                    f"{type(e).__name__} in {method.__qualname__} "
+                    f"({method.__module__}): {e}"
+                )
+                logger.error(msg, exc_info=True)
                 if not suppress:
-                    raise
+                    raise e
+            
             except Exception as e:
-                # Catch any other unexpected exceptions
-                e_message = f"Unexpected error in {method.__name__}: {e}"
-                print(e_message)
-                logger.error(e_message, exc_info=True)
-                raise
+                msg: str = (
+                    f"Unexpected error in {method.__qualname__} "
+                    f"({method.__module__}): {e}"
+                )                
+                logger.error(msg, exc_info=True)
+                raise e
 
         return wrapper
 
     return decorator
 
 
-def timeit(method: callable) -> callable:
+def timeit(method: Callable[..., Any]) -> Callable[..., Any]:
     """
-    Decorator to measure the execution time of
-    the decorated method.
-
-    Args:
-        method (function): The method to decorate.
-
-    Returns:
-        function: The decorated method.
-
-    Prints:
-        str: The log message with the execution time.
+    Decorator to measure execution time of a function.
     """
     @wraps(method)
-    def wrapper(*args, **kwargs):
-        """
-        Wrapper function to measure the execution time
-
-        Args:
-            *args: Variable length argument list.
-            **kwargs: Arbitrary keyword arguments.
-
-        Returns:
-            Any: The result of the decorated
-        """
-        start_time = time.time()
+    def wrapper(*args: Tuple, **kwargs: dict) -> Any:
+        start_time: float = time.time()
         result = method(*args, **kwargs)
-        end_time = time.time()
-        duration = end_time - start_time
-        log_message = f"{method.__name__} took {duration:.4f} seconds"
-        print(log_message)
+        end_time: float = time.time()
+        duration: float = end_time - start_time
+        log_message: str = f"{method.__qualname__} took {duration:.4f} seconds"
         logger.info(log_message)
         return result
 
     return wrapper
+
+
+if __name__ == '__main__':
+    @error_handler(suppress=True)
+    def test_error_handler() -> None:
+        """Test function for the error_handler decorator."""
+        with open('non_existent_file.txt', 'r') as f:
+            f.read
+            
+    
+    @timeit
+    def test_timeit() -> None:
+        """Test function for the timeit decorator."""
+        time.sleep(1)
+
+    test_timeit()
+    test_error_handler()
+

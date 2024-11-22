@@ -1,5 +1,5 @@
 {
-  "model_name": "sigmoid_model",
+  "name": "sigmoid_model",
   "layers" : [
     {
       "type": "input",
@@ -34,11 +34,11 @@
       "kernel_initializer": "glorot_uniform"
     }
   ],
-    "optimizer": {
-        "type": "rmsprop",
-        "learning_rate": 0.0001
-    },
-    "loss": "binary_crossentropy",
-    "batch_size": 512,
-    "epochs": 100000
+  "optimizer": {
+      "type": "rmsprop",
+      "learning_rate": 0.0001
+  },
+  "loss": "binary_crossentropy",
+  "batch_size": 512,
+  "epochs": 100000
 }

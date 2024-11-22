@@ -1,5 +1,5 @@
 {
-  "model_name": "softmax_model",
+  "name": "softmax_model",
   "layers" : [
     {
       "type": "input",
