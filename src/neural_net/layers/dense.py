@@ -43,10 +43,12 @@ class Dense:
                 strategy for bias weights. Defaults to None.
             **kwargs: Additional keyword arguments.
         """
+        # Protocol Attributes
         self.trainable = True
         self.built = False
         self.input_shape: tuple[int, ...] = (0,0)
         self.output_shape: tuple[int, ...] = (0,0)
+        # Specific Attributes
         self.logger = Logger("Dense")
         self.units: int = units
         self.kernel_initializer: str = kernel_initializer

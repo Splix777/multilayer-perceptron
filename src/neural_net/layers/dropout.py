@@ -1,4 +1,5 @@
 import numpy as np
+from pydantic import Field
 
 
 class Dropout:
@@ -9,13 +10,13 @@ class Dropout:
         Args:
             rate (float): Fraction of the input units to drop.
         """
+        # Protocol attributes
         self.trainable = False
         self.built = False
         self.input_shape: tuple[int, ...] = (0, 0)
         self.output_shape: tuple[int, ...] = (0, 0)
-        if not 0 <= rate < 1:
-            raise ValueError("Dropout rate must be in the range [0, 1).")
-        self.rate: float = rate
+        # Specific attributes
+        self.rate: float = Field(rate, ge=0, lt=1)
         self.train_mode = True
         self.mask = None
 

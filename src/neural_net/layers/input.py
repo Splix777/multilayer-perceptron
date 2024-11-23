@@ -10,6 +10,7 @@ class InputLayer:
             input_shape (tuple): Shape of the input tensor.
                                  Example: (batch_size, input_dim)
         """
+        # Protocol attributes
         self.trainable = False
         self.built = False
         self.input_shape: Tuple[int, ...] = input_shape
