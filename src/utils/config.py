@@ -6,14 +6,13 @@ from typing import Optional, Dict, List, Any
 from pydantic import BaseModel, ValidationError, field_validator
 
 logging.basicConfig(
-    level=logging.INFO,
-    format='%(asctime)s - %(levelname)s - %(message)s'
-    )
+    level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s"
+)
 
 
 class ProjectConfig(BaseModel):
     """Represents the project configuration."""
-    
+
     name: str
     version: str
     description: str
@@ -21,7 +20,7 @@ class ProjectConfig(BaseModel):
 
 class WdbcLabelsConfig(BaseModel):
     """Configuration for WDBC labels."""
-    
+
     id: str
     diagnosis: str
     radius_types: List[str]
@@ -30,7 +29,7 @@ class WdbcLabelsConfig(BaseModel):
 
 class PathsConfig(BaseModel):
     """Configuration for various paths in the project."""
-    
+
     output_directory: str
     source_directory: str
     docs_directory: str
@@ -43,19 +42,19 @@ class PathsConfig(BaseModel):
 
 class ConfigSchema(BaseModel):
     """Main configuration schema combining all sub-configurations."""
-    
+
     project: ProjectConfig
     settings: Dict[str, Any]
     paths: PathsConfig
     wdbc_labels: WdbcLabelsConfig
 
-    @field_validator('settings')
+    @field_validator("settings")
     def validate_settings(cls, v: Dict[str, Any]) -> Dict[str, Any]:
         """Validates the 'settings' dictionary."""
-        if 'log_level' not in v or 'max_retries' not in v:
+        if "log_level" not in v or "max_retries" not in v:
             raise ValueError(
                 "Settings must include 'log_level' and 'max_retries'"
-                )
+            )
         return v
 
 
@@ -75,7 +74,7 @@ class Config:
         trained_models_dir (Path): Path to trained models directory.
         plot_dir (Path): Path to the plot directory.
     """
-    
+
     config_path: Optional[Path] = None
     config: ConfigSchema = field(init=False)
     base_dir: Path = field(init=False)
@@ -91,7 +90,7 @@ class Config:
     def __post_init__(self) -> None:
         """Initializes configuration and directory setup."""
         if self.config_path is None:
-            self.config_path = Path(__file__).parent / '../../config.json'
+            self.config_path = Path(__file__).parent / "../../config.json"
         else:
             self.config_path = Path(self.config_path)
 
@@ -114,7 +113,7 @@ class Config:
         if self.config_path is None:
             raise ValueError("Config path cannot be None")
 
-        with open(self.config_path, 'r', encoding='utf-8') as config_file:
+        with open(self.config_path, "r", encoding="utf-8") as config_file:
             config_data: Dict[str, Any] = json.load(config_file)
             self.config = ConfigSchema(**config_data)
 
@@ -141,7 +140,7 @@ class Config:
             setattr(
                 self,
                 attribute_name,
-                self.base_dir / getattr(paths, config_key)
+                self.base_dir / getattr(paths, config_key),
             )
 
         # Ensure directories exist
@@ -155,14 +154,14 @@ class Config:
             dir_path.mkdir(parents=True, exist_ok=True)
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     try:
         config = Config(
-            config_path=Path(__file__).parent / '../../wrong_config.json'
-            )
-        
+            config_path=Path(__file__).parent / "../../wrong_config.json"
+        )
+
         pretty_config: str = json.dumps(config.config.model_dump(), indent=4)
         logging.info(f"Loaded configuration:\n{pretty_config}")
-        
+
     except Exception as e:
         logging.critical(f"Failed to initialize config: {e}")

@@ -1,6 +1,6 @@
 import numpy as np
 
-from src.model.layers.layer import Layer
+from src.neural_net.layers.layer import Layer
 
 
 class Dropout(Layer):

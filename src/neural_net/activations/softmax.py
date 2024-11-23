@@ -1,6 +1,6 @@
 import numpy as np
 
-from src.model.activations.activation import Activation
+from src.neural_net.activations.activation import Activation
 
 
 class Softmax(Activation):
@@ -16,6 +16,7 @@ class Softmax(Activation):
     exclusive classes. The output is interpretable as probabilities,
     allowing us to choose the class with the highest probability.
     """
+
     def __call__(self, x: np.ndarray) -> np.ndarray:
         """
         Apply the Softmax activation function.
@@ -49,4 +50,4 @@ class Softmax(Activation):
         Returns:
             dict: Configuration dictionary.
         """
-        return {'name': self.__class__.__name__}
+        return {"name": self.__class__.__name__}

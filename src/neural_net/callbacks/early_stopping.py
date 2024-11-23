@@ -1,11 +1,15 @@
 import numpy as np
 
-from src.model.callbacks.callback import Callback
+from src.neural_net.callbacks.callback import Callback
 
 
 class EarlyStopping(Callback):
-    def __init__(self, monitor: str = 'val_loss', patience: int = 5,
-                 verbose: bool = False):
+    def __init__(
+        self,
+        monitor: str = "val_loss",
+        patience: int = 5,
+        verbose: bool = False,
+    ):
         self.monitor = monitor
         self.patience = patience
         self.verbose = verbose
@@ -54,8 +58,10 @@ class EarlyStopping(Callback):
         """
         current = logs.get(self.monitor)
         if current is None:
-            raise ValueError(f"Early stopping requires "
-                             f"{self.monitor} available in logs.")
+            raise ValueError(
+                f"Early stopping requires "
+                f"{self.monitor} available in logs."
+            )
 
         if self.best_weights is None:
             self.best_weights = self.model.get_weights()
@@ -101,7 +107,9 @@ class EarlyStopping(Callback):
             None
         """
         if self.verbose:
-            print(f"Restoring model weights from the end of the best epoch"
-                  f"({self.best_epoch + 1}).")
+            print(
+                f"Restoring model weights from the end of the best epoch"
+                f"({self.best_epoch + 1})."
+            )
 
         self.model.set_weights(weights=self.best_weights)

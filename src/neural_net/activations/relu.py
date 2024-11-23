@@ -1,6 +1,6 @@
 import numpy as np
 
-from src.model.activations.activation import Activation
+from src.neural_net.activations.activation import Activation
 
 
 class ReLU(Activation):
@@ -17,6 +17,7 @@ class ReLU(Activation):
     accelerating convergence and improving the efficiency
     of deep learning models.
     """
+
     def __call__(self, x: np.ndarray) -> np.ndarray:
         """
         Apply the ReLU activation function.
@@ -49,4 +50,4 @@ class ReLU(Activation):
         Returns:
             dict: Configuration dictionary.
         """
-        return {'name': self.__class__.__name__}
+        return {"name": self.__class__.__name__}

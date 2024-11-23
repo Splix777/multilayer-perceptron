@@ -1,6 +1,6 @@
 import numpy as np
 
-from src.model.regulizers.regulizer import Regularizer
+from src.neural_net.regulizers.regulizer import Regularizer
 
 
 class L1Regularizer(Regularizer):
@@ -27,6 +27,7 @@ class L1Regularizer(Regularizer):
         can make optimization more challenging compared to L2
         regularization.
     """
+
     def __init__(self, lambda_param: float):
         """
         Initialize the L1 regularizer.

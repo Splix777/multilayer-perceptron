@@ -2,94 +2,56 @@ import json
 import os
 import pickle
 
-from typing import List, IO, Any, Optional
+from typing import List
 from pathlib import Path
 
 import numpy as np
 import pandas as pd
 
-from pydantic import BaseModel
 from sklearn.preprocessing import StandardScaler
 
 from src.utils.config import Config
 from src.utils.logger import Logger
 from src.utils.decorators import error_handler, timeit
 from src.utils.file_handlers import csv_to_dataframe, json_to_dict
-from src.dataset_handler.data_preprocessing import DataPreprocessor, ProcessedData
-from src.model.callbacks.early_stopping import EarlyStopping
+
+from src.schemas.csv_labels import CSVLabels
+from src.schemas.processed_data import ProcessedData
+
+from src.dataset_handler.data_preprocessing import DataPreprocessor
+from src.neural_net.callbacks.early_stopping import EarlyStopping
 from src.data_plotter.plotter import Plotter
-from src.model.model.sequential import Sequential
-from src.model.model.sequential_config import SequentialModelConfig
-from src.model.layers.input import InputLayer
-from src.model.layers.dense import Dense
-from src.model.layers.dropout import Dropout
+from src.neural_net.core.sequential import Sequential
+from src.schemas.sequential_config import SequentialModelConfig
+from src.neural_net.layers.input import InputLayer
+from src.neural_net.layers.dense import Dense
+from src.neural_net.layers.dropout import Dropout
 
-
-class CSVLabels(BaseModel):
-    id: str
-    target: str
-    features: List[str]
 
 class MultiLayerPerceptron:
-    """
-    MultiLayerPerceptron class to train, evaluate,
-    and predict using a Sequential model.
-
-    Attributes:
-        config (Config): Configuration object.
-        logger (Logger): Logger object.
-        data_processor (DataPreprocessor): DataPreprocessor object.
-
-    Methods:
-        train_model: Train a new model using the given dataset
-            and model configuration.
-        _create_labeled_data: Create a new df with labeled columns.
-        _plot_data: Plot the data distribution, correlation heatmap,
-            pairplot, and boxplots.
-        _preprocess_data: Preprocess the data by
-            loading, shuffling, and scaling it.
-        _load_model_config: Load the model configuration
-            from the given path.
-        _check_model_config: Check the model configuration
-            for required keys and values.
-        _build_model: Build a new model using the given configuration.
-        _train_new_model: Train a new model using the given
-            data and configuration.
-        _plot_model_history: Plot the model training history.
-        _save_model: Save the trained model to a pickle file.
-        _load_model: Load a trained model from a pickle file.
-        evaluate_model: Evaluate a trained model using the given data.
-        predict: Predict the target labels using the given data.
-        _predictions_labels: Convert the model predictions
-            to target labels.
-    """
     def __init__(self, **kwargs) -> None:
         """
         Initialize the MultiLayerPerceptron object.
 
         Attributes:
             config (Config): Configuration object.
+            plotter (Plotter): Plotter object.
             logger (Logger): Logger object.
             data_processor (DataPreprocessor): DataPreprocessor object.
 
         Returns:
             None
         """
-        self.config: Config = kwargs.get(
-            'config',
-            Config())
+        self.config: Config = kwargs.get("config", Config())
         self.plotter: Plotter = kwargs.get(
-            'plotter',
-            Plotter(config=self.config))
-        self.logger: Logger = kwargs.get(
-            'logger',
-            Logger('mlp'))
+            "plotter", Plotter(config=self.config)
+        )
+        self.logger: Logger = kwargs.get("logger", Logger("mlp"))
         self.data_processor: DataPreprocessor = kwargs.get(
-            'data_processor',
-            DataPreprocessor())
+            "data_processor", DataPreprocessor()
+        )
 
     @timeit
-    @error_handler()
     def train_model(self, dataset_path: Path, config_path: Path):
         """
         Train a new model using the given dataset
@@ -111,24 +73,27 @@ class MultiLayerPerceptron:
             str: Success message with the name of the trained model.
         """
         data: pd.DataFrame = csv_to_dataframe(file_path=dataset_path)
-        model_config: dict = json_to_dict(file_path=config_path)
-
         labeled_df, labels = self.__label_dataframe_cols(data=data)
-        
+
         # self.__plot_data(data=labeled_df, labels=labels)
 
         proccessed_data: ProcessedData = self.__preprocess_data(
-            data=labeled_df,
-            labels=labels)
+            data=labeled_df, labels=labels
+        )
 
-        model: Sequential = self._build_model(model_config=model_config)
+        model_config: dict = json_to_dict(file_path=config_path)
+        validated_config: SequentialModelConfig = SequentialModelConfig(
+            **model_config
+        )
+        model: Sequential = self.__build_model(
+            validated_config=validated_config
+        )
 
-        # trained_model: Sequential = self.__train_new_model(
-        #     model=model,
-        #     train_data=train_df,
-        #     val_data=val_df,
-        #     config=model_config
-        # )
+        trained_model: Sequential = self.__train_new_model(
+            model=model,
+            proccessed_data=proccessed_data,
+            validated_config=validated_config,
+        )
         # self._plot_model_history(model=trained_model, config=model_config)
         # named_model: str = self.__save_model(
         #     model=trained_model,
@@ -139,7 +104,9 @@ class MultiLayerPerceptron:
 
         # return f"Successfully trained model: {named_model}"
 
-    def __label_dataframe_cols(self, data: pd.DataFrame) -> tuple[pd.DataFrame, CSVLabels]:
+    def __label_dataframe_cols(
+        self, data: pd.DataFrame
+    ) -> tuple[pd.DataFrame, CSVLabels]:
         """
         Create a new CSV file with labeled columns.
 
@@ -159,10 +126,10 @@ class MultiLayerPerceptron:
         diagnosis: str = self.config.config.wdbc_labels.diagnosis
 
         col_names: list[str] = (
-                [patient_id, diagnosis]
-                + ['mean_' + feature for feature in base_features]
-                + [feature + '_se' for feature in base_features]
-                + ['worst_' + feature for feature in base_features]
+            [patient_id, diagnosis]
+            + ["mean_" + feature for feature in base_features]
+            + [feature + "_se" for feature in base_features]
+            + ["worst_" + feature for feature in base_features]
         )
 
         if len(data.columns) != len(col_names):
@@ -171,9 +138,7 @@ class MultiLayerPerceptron:
         data.columns = col_names
 
         labels = CSVLabels(
-            id=patient_id,
-            target=diagnosis,
-            features=col_names[2:]
+            id=patient_id, target=diagnosis, features=col_names[2:]
         )
 
         return data, labels
@@ -189,31 +154,28 @@ class MultiLayerPerceptron:
         Returns:
             None
         """
-        self.plotter.target_distribution(
-            column=labels.target,
-            data=data)
+        self.plotter.target_distribution(column=labels.target, data=data)
 
-        self.plotter.correlation_heatmap(
-            columns=labels.features,
-            data=data)
+        self.plotter.correlation_heatmap(columns=labels.features, data=data)
 
         self.plotter.pairplot(
             columns=[labels.target] + labels.features,
             hue=labels.target,
-            data=data)
+            data=data,
+        )
 
         self.plotter.boxplots(
-            columns=labels.features,
-            hue=labels.target,
-            data=data)
+            columns=labels.features, hue=labels.target, data=data
+        )
 
-    def __preprocess_data(self,
+    def __preprocess_data(
+        self,
         data: pd.DataFrame,
         labels: CSVLabels,
         scaler: StandardScaler = StandardScaler(),
         drop_columns: list[str] = [],
-        val_split: float = 0.2
-        ) -> ProcessedData:
+        val_split: float = 0.2,
+    ) -> ProcessedData:
         """
         Preprocess the data by loading, shuffling, and scaling it.
 
@@ -235,70 +197,12 @@ class MultiLayerPerceptron:
             target_col=labels.target,
             scaler=scaler,
             drop_columns=drop_columns,
-            val_split=val_split
+            val_split=val_split,
         )
 
-
-    @staticmethod
-    def _check_model_config(model_config: dict) -> tuple:
-        """
-        Check the model configuration for required keys and values.
-
-        Args:
-            model_config (dict): Model configuration dictionary.
-
-        Raises:
-            KeyError: If a required key is missing.
-            ValueError: If a value is invalid.
-
-        Returns:
-            list: Model layers.
-            str: Optimizer type.
-            str: Loss function.
-        """
-        required_keys = ['model_name', 'layers', 'optimizer', 'loss', 'epochs']
-        for key in required_keys:
-            if key not in model_config:
-                raise KeyError(f"Missing required key: {key}")
-
-        layers = model_config.get('layers', [])
-        if len(layers) < 2:
-            raise ValueError(
-                "Model must have at least an input and output layer.")
-
-        for layer in layers:
-            layer_type = layer.get('type')
-            if layer_type not in ['input', 'dense', 'dropout']:
-                raise ValueError("Invalid layer type.")
-
-            if layer_type == 'input' and 'input_shape' not in layer:
-                raise KeyError("Input layer must have an input shape.")
-
-            if layer_type == 'dense':
-                if 'units' not in layer:
-                    raise KeyError("Dense layer must have units.")
-                if 'activation' not in layer:
-                    layer['activation'] = 'relu'
-                if 'kernel_initializer' not in layer:
-                    layer['kernel_initializer'] = 'glorot_uniform'
-
-            if layer_type == 'dropout' and 'rate' not in layer:
-                raise KeyError("Dropout layer must have a rate.")
-
-        optimizer = model_config.get('optimizer')
-        if 'type' not in optimizer or 'learning_rate' not in optimizer:
-            raise KeyError("Optimizer must have a type.")
-        optimizer_type = optimizer.get('type')
-        if optimizer_type not in ['adam', 'rmsprop']:
-            raise ValueError("Invalid optimizer.")
-
-        loss = model_config.get('loss')
-        if loss not in ['binary_crossentropy', 'categorical_crossentropy']:
-            raise ValueError("Invalid loss function.")
-
-        return layers, optimizer_type, loss
-
-    def _build_model(self, model_config: dict) -> Sequential:
+    def __build_model(
+        self, validated_config: SequentialModelConfig
+    ) -> Sequential:
         """
         Build a new model using the given configuration.
 
@@ -312,45 +216,36 @@ class MultiLayerPerceptron:
         Returns:
             Sequential: New model.
         """
-        config = SequentialModelConfig(**model_config)
-        
-        # layers, optimizer, loss = self._check_model_config(
-        #     model_config=model_config
-        # )
-
         model = Sequential()
-        for layer in config.layers:
-            if layer.type == 'input':
-                model.add(InputLayer(
-                    input_shape=(layer.input_shape,)
-                ))
-            elif layer.type == 'dense':
-                model.add(Dense(
-                    units=layer.units,
-                    activation=layer.activation,
-                    kernel_initializer=layer.kernel_initializer,
-                    kernel_regularizer=layer.kernel_regularizer if layer.kernel_regularizer else ''
-                ))
-            elif layer.type == 'dropout':
-                model.add(Dropout(
-                    rate=layer.rate
-                ))
+        for layer in validated_config.layers:
+            if layer.type == "input":
+                model.add(InputLayer(input_shape=(layer.input_shape,)))
+            elif layer.type == "dense":
+                model.add(
+                    Dense(
+                        units=layer.units,
+                        activation=layer.activation,
+                        kernel_initializer=layer.kernel_initializer,
+                        kernel_regularizer=layer.kernel_regularizer
+                    )
+                )
+            elif layer.type == "dropout":
+                model.add(Dropout(rate=layer.rate))
 
         model.compile(
-            optimizer=config.optimizer.type,
-            learning_rate=config.optimizer.learning_rate,
-            loss=config.loss
+            optimizer=validated_config.optimizer.type,
+            learning_rate=validated_config.optimizer.learning_rate,
+            loss=validated_config.loss,
         )
-
-        self.logger.info(f"Model Summary:\n{model.summary()}")
 
         return model
 
-    @staticmethod
-    def __train_new_model(model: Sequential,
-                         train_data: pd.DataFrame,
-                         val_data: pd.DataFrame,
-                         config: dict) -> Sequential:
+    def __train_new_model(
+        self,
+        model: Sequential,
+        proccessed_data: ProcessedData,
+        validated_config: SequentialModelConfig,
+    ) -> Sequential:
         """
         Train a new model using the given data and configuration.
 
@@ -363,17 +258,19 @@ class MultiLayerPerceptron:
         Returns:
             Sequential: Trained model.
         """
+        self.logger.info(model.summary())
         model.fit(
-            X=train_data,
-            epochs=config.get('epochs', 1_000),
-            val_data=val_data,
-            callbacks=[EarlyStopping(
-                monitor='val_loss',
-                patience=1000,
-                verbose=True
-            )],
-            batch_size=config.get('batch_size', 32),
-            verbose=True
+            X=proccessed_data.train_df,
+            epochs=validated_config.epochs,
+            val_data=proccessed_data.val_df,
+            callbacks=[
+                EarlyStopping(
+                    monitor="val_loss",
+                    patience=1000,
+                    verbose=True)
+            ],
+            batch_size=validated_config.batch_size,
+            verbose=True,
         )
 
         return model
@@ -392,33 +289,35 @@ class MultiLayerPerceptron:
             None
         """
         history = model.history
-        model_name = config.get('model_name', 'model')
+        model_name = config.get("model_name", "model")
         if history is None:
             raise ValueError("Model history is empty.")
 
         self.logger.info(f"Model history: {json.dumps(history, indent=4)}")
 
-        df = pd.DataFrame({
-            'train_loss': history['loss']['training'],
-            'val_loss': history['loss']['validation'],
-            'train_accuracy': history['accuracy']['training'],
-            'val_accuracy': history['accuracy']['validation']
-        })
-
-        plotter = Plotter(
-            data=df,
-            save_dir=self.config.plot_dir
+        df = pd.DataFrame(
+            {
+                "train_loss": history["loss"]["training"],
+                "val_loss": history["loss"]["validation"],
+                "train_accuracy": history["accuracy"]["training"],
+                "val_accuracy": history["accuracy"]["validation"],
+            }
         )
+
+        plotter = Plotter(data=df, save_dir=self.config.plot_dir)
 
         plotter.plot_loss(model_name=model_name)
         plotter.plot_accuracy(model_name=model_name)
 
         self.logger.info(f"Plotted model history for: {model_name}.")
 
-    def __save_model(self, model: Sequential,
-                    scaler: StandardScaler,
-                    labels: dict,
-                    config: dict) -> str:
+    def __save_model(
+        self,
+        model: Sequential,
+        scaler: StandardScaler,
+        labels: dict,
+        config: dict,
+    ) -> str:
         """
         Save the trained model to a pickle file.
 
@@ -439,9 +338,9 @@ class MultiLayerPerceptron:
             "config": config,
         }
 
-        model_name = config.get('model_name', 'model')
+        model_name = config.get("model_name", "model")
         model_path = f"{self.config.model_dir}/{model_name}.pkl"
-        with open(model_path, 'wb') as f:
+        with open(model_path, "wb") as f:
             pickle.dump(pkl_model, f)
 
         self.logger.info(f"Saved model to:\n{model_path}")
@@ -464,7 +363,7 @@ class MultiLayerPerceptron:
         if not os.path.exists(model_path):
             raise FileNotFoundError(f"Model not found at: {model_path}")
 
-        with open(model_path, 'rb') as f:
+        with open(model_path, "rb") as f:
             pkl_model = pickle.load(f)
 
         model = pkl_model["model"]
@@ -472,11 +371,13 @@ class MultiLayerPerceptron:
         labels = pkl_model["labels"]
         model_config = pkl_model["config"]
 
-        self.logger.info(f"Loaded model from:\n{model_path}\n"
-                         f"Model: {model.summary()}\n"
-                         f"Scaler: {scaler}\n"
-                         f"Labels: {labels}\n"
-                         f"Config: {json.dumps(model_config, indent=4)}")
+        self.logger.info(
+            f"Loaded model from:\n{model_path}\n"
+            f"Model: {model.summary()}\n"
+            f"Scaler: {scaler}\n"
+            f"Labels: {labels}\n"
+            f"Config: {json.dumps(model_config, indent=4)}"
+        )
 
         return model, scaler, labels, model_config
 
@@ -498,9 +399,9 @@ class MultiLayerPerceptron:
         processed_data, _, _, _ = self.__preprocess_data(
             data=data,
             scaler=scaler,
-            target='diagnosis',
-            drop_columns=['id'],
-            val_split=0.0
+            target="diagnosis",
+            drop_columns=["id"],
+            val_split=0.0,
         )
 
         loss, accuracy = model.evaluate(X=processed_data)
@@ -529,16 +430,15 @@ class MultiLayerPerceptron:
         processed_data, _, _, _ = self.__preprocess_data(
             data=data,
             scaler=scaler,
-            target='diagnosis',
-            drop_columns=['id'],
-            val_split=0.0
+            target="diagnosis",
+            drop_columns=["id"],
+            val_split=0.0,
         )
 
         predictions = model.predict(X=processed_data)
 
         labeled_predictions = self._predictions_labels(
-            predictions=predictions,
-            labels=labels
+            predictions=predictions, labels=labels
         )
 
         self.logger.info(f"Predictions: {labeled_predictions}")

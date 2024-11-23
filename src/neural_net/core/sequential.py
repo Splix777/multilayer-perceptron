@@ -2,28 +2,30 @@ import numpy as np
 import pandas as pd
 
 from sklearn.model_selection import train_test_split
-from src.model.model.model import Model
-from src.model.layers.layer import Layer
-from src.model.layers.dropout import Dropout
-from src.model.layers.input import InputLayer
-from src.model.optimizers.optimizer import Optimizer
-from src.model.optimizers.adam import AdamOptimizer
-from src.model.optimizers.rms_prop import RMSpropOptimizer
-from src.model.losses.loss import Loss
-from src.model.losses.binary_cross_entropy import BinaryCrossEntropy
-from src.model.losses.categorical_cross_entropy import CategoricalCrossEntropy
-from src.model.callbacks.callback import Callback
+from src.neural_net.core.model import Model
+from src.neural_net.layers.layer import Layer
+from src.neural_net.layers.dropout import Dropout
+from src.neural_net.layers.input import InputLayer
+from src.neural_net.optimizers.optimizer import Optimizer
+from src.neural_net.optimizers.adam import AdamOptimizer
+from src.neural_net.optimizers.rms_prop import RMSpropOptimizer
+from src.neural_net.losses.loss import Loss
+from src.neural_net.losses.binary_cross_entropy import BinaryCrossEntropy
+from src.neural_net.losses.categorical_cross_entropy import (
+    CategoricalCrossEntropy,
+)
+from src.neural_net.callbacks.callback import Callback
 from src.utils.logger import Logger
 
 
 class Sequential(Model):
     def __init__(self):
-        super().__init__()
-        self.logger = Logger("Sequential")()
-        self.losses = {'training': {}, 'validation': {}}
-        self.accuracy = {'training': {}, 'validation': {}}
-        self.loss = None
-        self._layers = None
+        self.logger: Logger = Logger("Sequential")
+        self.losses: dict[dict, dict] = {"training": {}, "validation": {}}
+        self.accuracy: dict[dict, dict] = {"training": {}, "validation": {}}
+
+        self._layers: list[Layer] = []
+        self.loss: Loss = None
         self.built = False
         self.callbacks = None
         self.stop_training = False
@@ -45,27 +47,21 @@ class Sequential(Model):
             ValueError: If the layer is not an instance of Layer.
         """
         if not isinstance(layer, Layer):
-            raise ValueError('You can only add a Layer instance to the model.')
+            raise ValueError("You can only add a Layer instance to the model.")
 
         # The First layer should specify the input shape
-        if not self._layers:
+        if len(self._layers) == 0:
             if not isinstance(layer, InputLayer) or layer.input_shape is None:
                 raise ValueError("First layer should specify the input shape.")
-            self._layers = []
 
-        # The input shape of the current layer should
-        # match the output shape of the previous layer
-        if self._layers:
+        if len(self._layers) > 0:
             layer.input_shape = self._layers[-1].output_shape
 
-        self._layers.append(layer)
         layer.build(layer.input_shape)
+        self._layers.append(layer)
 
         if len(self._layers) > 1:
             self.built = True
-
-        self.logger.info(f"Added {layer.__class__.__name__}, "
-                         f"Output Shape: {layer.output_shape}")
 
     # <-- Compile Model -->
     def compile(self, loss: str, optimizer: str, learning_rate: float = 0.001):
@@ -85,68 +81,22 @@ class Sequential(Model):
         """
         if not self.built:
             raise ValueError(
-                "You must add layers to the model before compiling.")
+                "You must add layers to the model before compiling."
+            )
 
-        self.loss = self._set_loss_function(loss=loss)
+        self.loss: Loss = (
+            CategoricalCrossEntropy()
+            if loss == "categorical_crossentropy"
+            else BinaryCrossEntropy()
+        )
 
         for layer in self._layers:
             if layer.trainable:
-                layer.optimizer = self._create_optimizer(optimizer,
-                                                         learning_rate)
-
-        self.logger.info(f"Loss Function: {loss} -- "
-                         f"Optimizer: {optimizer} - LR {learning_rate}")
-
-    @staticmethod
-    def _set_loss_function(loss: str) -> Loss:
-        """
-        Set the loss function for the model.
-
-        Args:
-            loss (str): Name of the loss function.
-
-        Returns:
-            Loss: Loss function instance.
-
-        Raises:
-            ValueError: If the loss function is not recognized.
-        """
-        loss_functions = {
-            'binary_crossentropy': BinaryCrossEntropy,
-            'categorical_crossentropy': CategoricalCrossEntropy,
-        }
-
-        if loss not in loss_functions:
-            raise ValueError(f"Unknown loss: {loss}")
-
-        return loss_functions[loss]()
-
-    @staticmethod
-    def _create_optimizer(optimizer: str, learning_rate: float) -> Optimizer:
-        """
-        Create an optimizer instance for the model.
-
-        Args:
-            optimizer (Optimizer | str): Optimizer instance
-                or name of the optimizer to use.
-            learning_rate (float): Learning rate for the optimizer.
-
-        Returns:
-            Optimizer: Optimizer instance.
-
-        Raises:
-            TypeError: If the optimizer type is unsupported.
-        """
-        optimizer_classes = {
-            'adam': AdamOptimizer,
-            'rmsprop': RMSpropOptimizer
-        }
-
-        if optimizer.lower() not in optimizer_classes:
-            raise ValueError(f"Unknown optimizer: {optimizer}")
-
-        return optimizer_classes[optimizer.lower()](
-            learning_rate=learning_rate)
+                layer.optimizer = (
+                    AdamOptimizer(learning_rate)
+                    if optimizer == "adam"
+                    else RMSpropOptimizer(learning_rate)
+                )
 
     # <-- Forward and Backward Pass -->
     def call(self, inputs: np.ndarray | list) -> np.ndarray:
@@ -195,9 +145,16 @@ class Sequential(Model):
                 self._update_epoch_weights(layer)
 
     # <-- Training Methods -->
-    def fit(self, X: pd.DataFrame, epochs: int, val_split: float = None,
-            val_data: pd.DataFrame = None, callbacks: list[Callback] = None,
-            batch_size: int = 32, verbose: bool = False) -> None:
+    def fit(
+        self,
+        X: pd.DataFrame,
+        epochs: int,
+        val_split: float = None,
+        val_data: pd.DataFrame = None,
+        callbacks: list[Callback] = None,
+        batch_size: int = 32,
+        verbose: bool = False,
+    ) -> None:
         """
         Train the model using the provided training data
         and optionally validate using validation data.
@@ -219,8 +176,9 @@ class Sequential(Model):
         Raises:
             ValueError: If input data types are incorrect.
         """
-        self._validate_inputs(X, epochs, val_split, val_data,
-                              callbacks, batch_size, verbose)
+        self._validate_inputs(
+            X, epochs, val_split, val_data, callbacks, batch_size, verbose
+        )
 
         self._init_callbacks(callbacks)
 
@@ -243,15 +201,18 @@ class Sequential(Model):
 
             val_loss, val_accuracy = self._eval_validation_data(X_val, y_val)
 
-            log = self._update_metrics(trn_loss, trn_accuracy, val_loss,
-                                       val_accuracy, epoch)
+            log = self._update_metrics(
+                trn_loss, trn_accuracy, val_loss, val_accuracy, epoch
+            )
 
             if verbose:
-                print(f"Epoch {epoch + 1}/{epochs}: "
-                      f"Accuracy: {log['accuracy']:.3f}, "
-                      f"Loss: {log['loss']:.3f} -- "
-                      f"Val Accuracy: {log['val_accuracy']:.3f}, "
-                      f"Val Loss: {log['val_loss']:.3f}")
+                print(
+                    f"Epoch {epoch + 1}/{epochs}: "
+                    f"Accuracy: {log['accuracy']:.3f}, "
+                    f"Loss: {log['loss']:.3f} -- "
+                    f"Val Accuracy: {log['val_accuracy']:.3f}, "
+                    f"Val Loss: {log['val_loss']:.3f}"
+                )
 
             for callback in callbacks:
                 callback.on_epoch_end(epoch, logs=log)
@@ -318,8 +279,8 @@ class Sequential(Model):
                 input features and target labels.
         """
         for i in range(0, X.shape[0], batch_size):
-            X_batch = X[i:i + batch_size]
-            y_batch = y[i:i + batch_size]
+            X_batch = X[i : i + batch_size]
+            y_batch = y[i : i + batch_size]
 
             yield X_batch, y_batch
 
@@ -355,14 +316,17 @@ class Sequential(Model):
         """
         if layer.kernel_regularizer:
             layer.weights_gradients += layer.kernel_regularizer.gradient(
-                layer.weights)
+                layer.weights
+            )
             layer.bias_gradients += layer.kernel_regularizer.gradient(
-                layer.bias)
+                layer.bias
+            )
         layer.weights, layer.bias = layer.optimizer.update(
             weights=layer.weights,
             bias=layer.bias,
             weights_gradients=layer.weights_gradients,
-            bias_gradients=layer.bias_gradients)
+            bias_gradients=layer.bias_gradients,
+        )
 
     @staticmethod
     def _apply_regularization(layer: Layer, inputs: np.ndarray) -> np.ndarray:
@@ -374,8 +338,7 @@ class Sequential(Model):
             inputs (np.ndarray): Input data or features.
         """
         if layer.kernel_regularizer:
-            regularization_penalty = layer.kernel_regularizer(
-                layer.weights)
+            regularization_penalty = layer.kernel_regularizer(layer.weights)
             inputs += regularization_penalty
 
         return inputs
@@ -486,9 +449,16 @@ class Sequential(Model):
 
         self.callbacks = callbacks
 
-    def _validate_inputs(self, X: pd.DataFrame, epochs: int, val_split: float,
-                         val_data: pd.DataFrame, callbacks: list[Callback],
-                         batch_size: int, verbose: bool):
+    def _validate_inputs(
+        self,
+        X: pd.DataFrame,
+        epochs: int,
+        val_split: float,
+        val_data: pd.DataFrame,
+        callbacks: list[Callback],
+        batch_size: int,
+        verbose: bool,
+    ):
         """
         Validate inputs for the fit method.
 
@@ -522,8 +492,9 @@ class Sequential(Model):
         self.verbose = verbose
 
     # <-- Data Preparation -->
-    def _split_data(self, X: pd.DataFrame, val_split: float,
-                    val_data: pd.DataFrame):
+    def _split_data(
+        self, X: pd.DataFrame, val_split: float, val_data: pd.DataFrame
+    ):
         """
         Split the data into training and validation sets.
 
@@ -544,13 +515,17 @@ class Sequential(Model):
         if self.model_output_units > 1:
             X_train, y_train = self._one_hot_encoding(X_train)
             X_val, y_val = self._one_hot_encoding(val_data)
-            self.logger.info(f"Output Units: {self.model_output_units}: "
-                             f"Using One-Hot Encoding")
+            self.logger.info(
+                f"Output Units: {self.model_output_units}: "
+                f"Using One-Hot Encoding"
+            )
         else:
             X_train, y_train = self._label_encoding(X_train)
             X_val, y_val = self._label_encoding(val_data)
-            self.logger.info(f"Output Units: {self.model_output_units}: "
-                             f"Using Label Encoding")
+            self.logger.info(
+                f"Output Units: {self.model_output_units}: "
+                f"Using Label Encoding"
+            )
 
         return X_train, y_train, X_val, y_val
 
@@ -584,12 +559,12 @@ class Sequential(Model):
         Returns:
             np.ndarray: Numpy array of input features.
         """
-        if 'diagnosis' not in X.columns:
+        if "diagnosis" not in X.columns:
             raise ValueError("The target column is missing.")
 
         # Separate features and target
-        X_feature = X.drop(columns=['diagnosis']).values
-        y_true = X['diagnosis'].values.astype(int)
+        X_feature = X.drop(columns=["diagnosis"]).values
+        y_true = X["diagnosis"].values.astype(int)
 
         # Get the number of samples (Rows)
         n_samples = y_true.shape[0]
@@ -618,14 +593,20 @@ class Sequential(Model):
         Returns:
             np.ndarray: Numpy array of labels.
         """
-        X = data.drop(columns=['diagnosis']).values
-        y = data['diagnosis'].values.astype(int)
+        X = data.drop(columns=["diagnosis"]).values
+        y = data["diagnosis"].values.astype(int)
 
         return X, y
 
     # <-- Metrics and Logging -->
-    def _update_metrics(self, losses: list[float], metrics: list[float],
-                        val_loss: float, val_accuracy: float, epoch: int):
+    def _update_metrics(
+        self,
+        losses: list[float],
+        metrics: list[float],
+        val_loss: float,
+        val_accuracy: float,
+        epoch: int,
+    ):
         """
         Update the metrics for the model.
 
@@ -638,16 +619,16 @@ class Sequential(Model):
         Returns:
             dict: Dictionary of updated metrics.
         """
-        self.losses['training'][epoch] = np.mean(losses)
-        self.accuracy['training'][epoch] = np.mean(metrics)
-        self.losses['validation'][epoch] = val_loss
-        self.accuracy['validation'][epoch] = val_accuracy
+        self.losses["training"][epoch] = np.mean(losses)
+        self.accuracy["training"][epoch] = np.mean(metrics)
+        self.losses["validation"][epoch] = val_loss
+        self.accuracy["validation"][epoch] = val_accuracy
 
         return {
-            'loss': np.mean(losses),
-            'accuracy': np.mean(metrics),
-            'val_loss': val_loss,
-            'val_accuracy': val_accuracy
+            "loss": np.mean(losses),
+            "accuracy": np.mean(metrics),
+            "val_loss": val_loss,
+            "val_accuracy": val_accuracy,
         }
 
     @property
@@ -658,7 +639,7 @@ class Sequential(Model):
         Returns:
             dict: Dictionary of training history.
         """
-        return {'loss': self.losses, 'accuracy': self.accuracy}
+        return {"loss": self.losses, "accuracy": self.accuracy}
 
     @property
     def model_output_units(self) -> int:
@@ -711,10 +692,12 @@ class Sequential(Model):
         for i, layer in enumerate(self._layers):
             output_shape = layer.output_shape
             parameters = layer.count_parameters()
-            summary += (f"Layer {i + 1} {layer.__class__.__name__}: "
-                        f"Trainable: {layer.trainable}, "
-                        f"Output Shape: {output_shape}, "
-                        f"Parameters: {parameters}\n")
+            summary += (
+                f"Layer {i + 1} {layer.__class__.__name__}: "
+                f"Trainable: {layer.trainable}, "
+                f"Output Shape: {output_shape}, "
+                f"Parameters: {parameters}\n"
+            )
 
         summary += f"Total Parameters: {self.count_parameters()}"
         return summary

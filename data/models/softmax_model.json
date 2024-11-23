@@ -34,11 +34,11 @@
       "kernel_initializer": "glorot_uniform"
     }
   ],
-    "optimizer": {
-        "type": "adam",
-        "learning_rate": 0.001
-    },
-    "loss": "binary_crossentropy",
-    "batch_size": 512,
-    "epochs": 100000
+  "optimizer": {
+      "type": "adam",
+      "learning_rate": 0.001
+  },
+  "loss": "binary_crossentropy",
+  "batch_size": 512,
+  "epochs": 100000
 }

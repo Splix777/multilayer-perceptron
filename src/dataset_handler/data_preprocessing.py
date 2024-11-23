@@ -1,22 +1,11 @@
 import pandas as pd
 
-from pydantic import BaseModel
-
 from sklearn.model_selection import train_test_split
 from sklearn.preprocessing import LabelEncoder, StandardScaler
 
 from src.utils.logger import Logger
 from src.utils.decorators import error_handler
-
-
-class ProcessedData(BaseModel):
-    train_df: pd.DataFrame
-    val_df: pd.DataFrame
-    scaler: StandardScaler
-    binary_target_map: dict
-
-    class Config:
-        arbitrary_types_allowed = True
+from src.schemas.processed_data import ProcessedData
 
 class DataPreprocessor:
     """
@@ -43,15 +32,16 @@ class DataPreprocessor:
         self.logger: Logger = Logger("data_preprocessor")
 
     @error_handler(exceptions_to_handle=(ValueError, KeyError))
-    def load_from_df(self, 
-                     df: pd.DataFrame,
-                     target_col: str,
-                     scaler: StandardScaler,
-                     shuffle: bool = True,
-                     seed: int = 42,
-                     drop_columns: list[str] = [],
-                     val_split: float = 0.2,
-                     ) -> ProcessedData:
+    def load_from_df(
+        self,
+        df: pd.DataFrame,
+        target_col: str,
+        scaler: StandardScaler,
+        shuffle: bool = True,
+        seed: int = 42,
+        drop_columns: list[str] = [],
+        val_split: float = 0.2,
+    ) -> ProcessedData:
         """
         Load a dataset from a DataFrame, preprocess labels,
         and split it into training and validation sets.
@@ -81,13 +71,11 @@ class DataPreprocessor:
                 train_df=df,
                 val_df=pd.DataFrame(),
                 scaler=scaler,
-                binary_target_map=binary_target_map)
+                binary_target_map=binary_target_map,
+            )
 
         train_df, val_df = train_test_split(
-            df,
-            test_size=val_split,
-            shuffle=shuffle,
-            random_state=seed
+            df, test_size=val_split, shuffle=shuffle, random_state=seed
         )
 
         # Standardize train and validation sets. Scale them separately to avoid data leakage.
@@ -98,9 +86,12 @@ class DataPreprocessor:
             train_df=train_df,
             val_df=val_df,
             scaler=scaler,
-            binary_target_map=binary_target_map)
+            binary_target_map=binary_target_map,
+        )
 
-    def _encode_target_column(self, df: pd.DataFrame, target_col: str) -> tuple[pd.DataFrame, dict]:
+    def _encode_target_column(
+        self, df: pd.DataFrame, target_col: str
+    ) -> tuple[pd.DataFrame, dict]:
         """
         Encode the target column into numeric values.
 
@@ -112,10 +103,14 @@ class DataPreprocessor:
             tuple: Updated DataFrame and label mapping dictionary.
         """
         df[target_col] = self.label_encoder.fit_transform(df[target_col])
-        labels = {label: idx for idx, label in enumerate(self.label_encoder.classes_)}
+        labels = {
+            label: idx for idx, label in enumerate(self.label_encoder.classes_)
+        }
         return df, labels
 
-    def _scale_dataframe(self, df: pd.DataFrame, target_col: str, scaler: StandardScaler) -> tuple[pd.DataFrame, StandardScaler]:
+    def _scale_dataframe(
+        self, df: pd.DataFrame, target_col: str, scaler: StandardScaler
+    ) -> tuple[pd.DataFrame, StandardScaler]:
         """
         Standardize the features of the DataFrame.
 
@@ -129,12 +124,15 @@ class DataPreprocessor:
         """
         features = df.drop(columns=[target_col])
         scaled_features = scaler.fit_transform(features)
-        scaled_df = pd.DataFrame(scaled_features, columns=features.columns, index=df.index)
+        scaled_df = pd.DataFrame(
+            scaled_features, columns=features.columns, index=df.index
+        )
         scaled_df[target_col] = df[target_col]
         return scaled_df, scaler
 
-    def standardize_data(self, df: pd.DataFrame, label_col: str,
-                         scaler: StandardScaler):
+    def standardize_data(
+        self, df: pd.DataFrame, label_col: str, scaler: StandardScaler
+    ):
         """
         Standardize the data.
 
@@ -154,9 +152,9 @@ class DataPreprocessor:
         return df, scaler
 
     @staticmethod
-    def fit_transform(df: pd.DataFrame,
-                      label_col: str,
-                      scaler: StandardScaler) -> pd.DataFrame:
+    def fit_transform(
+        df: pd.DataFrame, label_col: str, scaler: StandardScaler
+    ) -> pd.DataFrame:
         """
         Fit and transform the DataFrame.
 
@@ -174,9 +172,9 @@ class DataPreprocessor:
         return df
 
     @staticmethod
-    def transform(df: pd.DataFrame,
-                  label_col: str,
-                  scaler: StandardScaler) -> pd.DataFrame:
+    def transform(
+        df: pd.DataFrame, label_col: str, scaler: StandardScaler
+    ) -> pd.DataFrame:
         """
         Transform the DataFrame.
 
@@ -194,9 +192,9 @@ class DataPreprocessor:
         return df
 
     @staticmethod
-    def inv_transform(df: pd.DataFrame,
-                      label_col: str,
-                      scaler: StandardScaler) -> pd.DataFrame:
+    def inv_transform(
+        df: pd.DataFrame, label_col: str, scaler: StandardScaler
+    ) -> pd.DataFrame:
         """
         Inverse transforms the DataFrame.
 

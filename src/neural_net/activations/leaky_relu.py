@@ -1,6 +1,6 @@
 import numpy as np
 
-from src.model.activations.activation import Activation
+from src.neural_net.activations.activation import Activation
 
 
 class LeakyReLU(Activation):
@@ -16,6 +16,7 @@ class LeakyReLU(Activation):
     the network, preventing neurons from becoming inactive and
     improving model performance and convergence during training.
     """
+
     def __init__(self, alpha=0.01):
         super().__init__()
         self.alpha = alpha
@@ -53,4 +54,4 @@ class LeakyReLU(Activation):
         Returns:
             dict: Configuration dictionary.
         """
-        return {'name': self.__class__.__name__, 'alpha': self.alpha}
+        return {"name": self.__class__.__name__, "alpha": self.alpha}

@@ -1,6 +1,6 @@
 import numpy as np
 
-from src.model.optimizers.optimizer import Optimizer
+from src.neural_net.optimizers.optimizer import Optimizer
 
 
 class RMSpropOptimizer(Optimizer):
@@ -66,8 +66,13 @@ class RMSpropOptimizer(Optimizer):
         self.accumulated_weights = np.zeros(weights_shape)
         self.accumulated_bias = np.zeros(bias_shape)
 
-    def update(self, weights: np.ndarray, bias: np.ndarray,
-               weights_gradients: np.ndarray, bias_gradients: np.ndarray):
+    def update(
+        self,
+        weights: np.ndarray,
+        bias: np.ndarray,
+        weights_gradients: np.ndarray,
+        bias_gradients: np.ndarray,
+    ):
         """
         Update the weights and biases using RMSprop optimization.
 
@@ -83,23 +88,19 @@ class RMSpropOptimizer(Optimizer):
         if self.accumulated_weights is None:
             self.initialize_accumulators(weights.shape, bias.shape)
 
-        self.accumulated_weights = (self.rho
-                                    * self.accumulated_weights
-                                    + (1 - self.rho)
-                                    * (weights_gradients ** 2))
-        self.accumulated_bias = (self.rho
-                                 * self.accumulated_bias
-                                 + (1 - self.rho)
-                                 * (bias_gradients ** 2))
+        self.accumulated_weights = self.rho * self.accumulated_weights + (
+            1 - self.rho
+        ) * (weights_gradients**2)
+        self.accumulated_bias = self.rho * self.accumulated_bias + (
+            1 - self.rho
+        ) * (bias_gradients**2)
 
-        updated_weight = (weights
-                          - self.learning_rate
-                          * weights_gradients
-                          / (np.sqrt(self.accumulated_weights) + self.epsilon))
-        updated_bias = (bias
-                        - self.learning_rate
-                        * bias_gradients
-                        / (np.sqrt(self.accumulated_bias) + self.epsilon))
+        updated_weight = weights - self.learning_rate * weights_gradients / (
+            np.sqrt(self.accumulated_weights) + self.epsilon
+        )
+        updated_bias = bias - self.learning_rate * bias_gradients / (
+            np.sqrt(self.accumulated_bias) + self.epsilon
+        )
 
         return updated_weight, updated_bias
 
@@ -108,7 +109,7 @@ class RMSpropOptimizer(Optimizer):
         Get the configuration of the optimizer.
         """
         return {
-            'learning_rate': self.learning_rate,
-            'rho': self.rho,
-            'epsilon': self.epsilon
+            "learning_rate": self.learning_rate,
+            "rho": self.rho,
+            "epsilon": self.epsilon,
         }

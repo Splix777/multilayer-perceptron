@@ -19,6 +19,7 @@ class CategoricalCrossEntropy(Loss):
             Get the configuration of the Categorical
             Cross-Entropy losses function.
     """
+
     def __init__(self):
         super().__init__()
 
@@ -46,7 +47,7 @@ class CategoricalCrossEntropy(Loss):
             num_classes = y_pred.shape[1]
             y_true = np.eye(num_classes)[y_true]
 
-        loss = - np.mean(y_true * np.log(y_pred))
+        loss = -np.mean(y_true * np.log(y_pred))
         return float(loss)
 
     def gradient(self, y_true: np.ndarray, y_pred: np.ndarray) -> np.ndarray:
@@ -74,7 +75,7 @@ class CategoricalCrossEntropy(Loss):
             num_classes = y_pred.shape[1]
             y_true = np.eye(num_classes)[y_true]
 
-        gradient = - y_true / y_pred
+        gradient = -y_true / y_pred
         return gradient / len(y_true)
 
     def get_config(self) -> dict:
@@ -86,6 +87,4 @@ class CategoricalCrossEntropy(Loss):
             dict: Configuration of the Categorical
                 Cross-Entropy losses function.
         """
-        return {
-            'name': self.__class__.__name__
-        }
+        return {"name": self.__class__.__name__}

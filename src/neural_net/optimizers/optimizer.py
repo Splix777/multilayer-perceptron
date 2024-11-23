@@ -18,8 +18,13 @@ class Optimizer(ABC):
         self._init_kwargs = kwargs
 
     @abstractmethod
-    def update(self, weights: np.ndarray, biases: np.ndarray,
-               weights_gradient: np.ndarray, biases_gradient: np.ndarray):
+    def update(
+        self,
+        weights: np.ndarray,
+        biases: np.ndarray,
+        weights_gradient: np.ndarray,
+        biases_gradient: np.ndarray,
+    ):
         """
         Update the weights and biases of the model.
 

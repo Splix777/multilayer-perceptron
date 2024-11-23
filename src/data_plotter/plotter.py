@@ -1,7 +1,6 @@
-from typing import Any, Union, Generator, Tuple
+from typing import Generator, Tuple
 
 import pandas as pd
-import numpy as np
 from pathlib import Path
 
 import matplotlib.pyplot as plt
@@ -16,38 +15,52 @@ from src.utils.logger import Logger
 
 class Plotter:
     """
-    A class to generate and save plots for data visualization.
+    Plotter class to generate and save visualizations.
 
     Attributes:
-        config (Config): Config object to load configuration settings.
-        logger (Logger): Logger object to log messages.
-        save_dir (Path): Path to the directory to save the plots.
+        config (Config): Configuration object.
+        logger (Logger): Logger object.
+        save_dir (Path): Directory to save the plots.
 
-    Methods:
-        save_or_show: Save or show the plot based
-            on the save_dir attribute.
-        data_distribution: Plot the distribution
-            of a specified column in the data.
-        correlation_heatmap: Generate and display
-            a correlation heatmap for the data.
-        pairplot: Generate a pairplot for
-            selected columns in the data.
-        boxplots: Generate boxplots for selected
-            columns in the data.
-        plot_loss: Plot the training and validation loss
-            over epochs for a specified model.
-        plot_accuracy: Plot the training and validation
-            accuracy over epochs for a specified model.
+    Methods:    
+        __init__(**kwargs): Initialize the Plotter with the
+            given configuration.
+        __fig_generator(figsize: tuple): Generate Matplotlib Figure
+            and Axes objects.
+        save_or_show(fig: Figure, output_path: str): Save the plot
+            to the output path if a valid save directory is provided,
+            otherwise display the plot.
+        target_distribution(column: str, data: pd.DataFrame): Plot the
+            distribution of a specified column in the data.
+        correlation_heatmap(columns: list[str], data: pd.DataFrame):
+            Generate and display a correlation heatmap for
+            the data excluding specified columns.
+        pairplot(columns: list[str], hue: str, data: pd.DataFrame):
+            Generate a pairplot for selected columns
+            in the data with a specified hue.
+        boxplots(columns: list[str], hue: str, data: pd.DataFrame):
+            Generate a pairplot for selected columns
+            in the data with a specified hue.
     """
     def __init__(self, **kwargs) -> None:
-        self.config: Config = kwargs.get('config', Config())
-        self.logger: Logger = kwargs.get('logger', Logger('plotter'))
-        self.save_dir: Path = kwargs.get('save_dir', self.config.plot_dir)
+        """
+        Initialize the Plotter with the given configuration.
+
+        Args:
+            config (Config): Configuration object.
+            logger (Logger): Logger object.
+            save_dir (Path): Directory to save the plots.
+
+        Returns:
+            None
+        """
+        self.config: Config = kwargs.get("config", Config())
+        self.logger: Logger = kwargs.get("logger", Logger("plotter"))
+        self.save_dir: Path = kwargs.get("save_dir", self.config.plot_dir)
 
     def __fig_generator(
-            self,
-            figsize: tuple = (8, 6)
-            ) -> Generator[Tuple[Figure, Axes], None, None]:
+        self, figsize: tuple = (8, 6)
+    ) -> Generator[Tuple[Figure, Axes], None, None]:
         """
         Generate Matplotlib Figure and Axes objects.
 
@@ -76,7 +89,7 @@ class Plotter:
 
         Args:
             fig (Figure): The Matplotlib Figure object.
-            output_path (str): The filename to save the plot. =
+            output_path (str): The filename to save the plot.
                 If not provided, the plot will be displayed instead.
 
         Returns:
@@ -95,7 +108,6 @@ class Plotter:
 
             try:
                 fig.savefig(save_path)
-                self.logger.info(f"Figure saved to {save_path}")
             except Exception as e:
                 self.logger.info(f"Error saving figure: {e}")
             finally:
@@ -108,7 +120,7 @@ class Plotter:
                 self.logger.info(f"Error displaying figure: {e}")
             finally:
                 plt.close(fig)
-        
+
     def target_distribution(self, column: str, data: pd.DataFrame):
         """
         Plot the distribution of a specified column in the data.
@@ -124,18 +136,13 @@ class Plotter:
         fig, ax = next(self.__fig_generator(figsize=(8, 6)))
 
         sns.countplot(
-            x=column,
-            data=data,
-            hue=column,
-            palette='Set2',
-            legend=True,
-            ax=ax
-            )
-        ax.set_title('Distribution of Diagnosis')
-        ax.set_xlabel('Diagnosis')
-        ax.set_ylabel('Count')
+            x=column, data=data, hue=column, palette="Set2", legend=True, ax=ax
+        )
+        ax.set_title("Distribution of Diagnosis")
+        ax.set_xlabel("Diagnosis")
+        ax.set_ylabel("Count")
 
-        self.save_or_show(fig=fig, output_path='data_distribution.png')
+        self.save_or_show(fig=fig, output_path="data_distribution.png")
 
     def correlation_heatmap(self, columns: list[str], data: pd.DataFrame):
         """
@@ -143,8 +150,8 @@ class Plotter:
         the data excluding specified columns.
 
         Args:
-            exclude_columns (list): List of column names
-                to exclude from the correlation calculation.
+            columns (list): List of column names to correlate.
+            data (pd.DataFrame): The data to be visualized.
 
         Returns:
             None
@@ -160,21 +167,21 @@ class Plotter:
             corr_matrix,
             annot=True,
             robust=True,
-            fmt='.2f',
-            cmap='coolwarm',
+            fmt=".2f",
+            cmap="coolwarm",
             cbar=False,
-            ax=ax
-            )
+            ax=ax,
+        )
         ax.set_title(
-            label='Correlation Heatmap',
-            fontdict={'fontsize': 24},
+            label="Correlation Heatmap",
+            fontdict={"fontsize": 24},
             pad=20,
-            )
+        )
         ax.set_xticklabels(
             labels=corr_matrix.columns,
             rotation=45,
         )
-        self.save_or_show(fig=fig, output_path='correlation_heatmap.png')
+        self.save_or_show(fig=fig, output_path="correlation_heatmap.png")
 
     def pairplot(self, columns: list[str], hue: str, data: pd.DataFrame):
         """
@@ -185,6 +192,7 @@ class Plotter:
             columns (list): List of column names
                 to include in the pairplot.
             hue (str): Column name to use for coloring the plot.
+            data (pd.DataFrame): The data to be visualized.
 
         Returns:
             None
@@ -192,10 +200,10 @@ class Plotter:
         grid: sns.PairGrid = sns.pairplot(
             data[columns],
             hue=hue,
-            palette='Set2',
-            )
-        grid.figure.suptitle('Pairplot of Selected Features', y=1.02)
-        self.save_or_show(fig=grid.figure, output_path='pairplot.png')  
+            palette="Set2",
+        )
+        grid.figure.suptitle("Pairplot of Selected Features", y=1.02)
+        self.save_or_show(fig=grid.figure, output_path="pairplot.png")
 
     def boxplots(self, columns: list[str], hue: str, data: pd.DataFrame):
         """
@@ -206,35 +214,33 @@ class Plotter:
             columns (list): List of column names
                 to include in the pairplot.
             hue (str): Column name to use for coloring the plot.
+            data (pd.DataFrame): The data to be visualized.
 
         Returns:
             None
         """
         fig, ax = next(self.__fig_generator(figsize=(24, 16)))
-        
+
         features: list[str] = columns
         data_melted: pd.DataFrame = pd.melt(
             data[[hue] + features],
             id_vars=[hue],
-            var_name='feature',
-            value_name='value'
+            var_name="feature",
+            value_name="value",
         )
 
         sns.boxplot(
-            x='feature',
-            y='value',
+            x="feature",
+            y="value",
             data=data_melted,
             hue=hue,
-            palette='Set2',
-            ax=ax
+            palette="Set2",
+            ax=ax,
         )
-        ax.set_title('Boxplots of Selected Features')
-        ax.set_xticklabels(
-            labels=features,
-            rotation=45
-        )
+        ax.set_title("Boxplots of Selected Features")
+        ax.set_xticklabels(labels=features, rotation=45)
 
-        self.save_or_show(fig=fig, output_path='boxplots.png')
+        self.save_or_show(fig=fig, output_path="boxplots.png")
 
     # def plot_loss(self, model_name: str) -> None:
     #     """

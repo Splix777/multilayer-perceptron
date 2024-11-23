@@ -1,6 +1,6 @@
 import numpy as np
 
-from src.model.activations.activation import Activation
+from src.neural_net.activations.activation import Activation
 
 
 class ParametricReLU(Activation):
@@ -19,6 +19,7 @@ class ParametricReLU(Activation):
     problem and enhance the overall expressiveness of the
     neural network.
     """
+
     def __init__(self, alpha=0.01):
         super().__init__()
         self.alpha = alpha
@@ -50,8 +51,12 @@ class ParametricReLU(Activation):
         """
         return np.where(x > 0, 1, self.alpha)
 
-    def update_alpha(self, loss_gradients: np.ndarray, input_data: np.ndarray,
-                     learning_rate: float) -> None:
+    def update_alpha(
+        self,
+        loss_gradients: np.ndarray,
+        input_data: np.ndarray,
+        learning_rate: float,
+    ) -> None:
         """
         Update the alpha parameter of the Parametric ReLU activation.
 
@@ -71,4 +76,4 @@ class ParametricReLU(Activation):
         Returns:
             dict: Configuration dictionary.
         """
-        return {'name': self.__class__.__name__, 'alpha': self.alpha}
+        return {"name": self.__class__.__name__, "alpha": self.alpha}

@@ -1,6 +1,6 @@
 import numpy as np
 
-from src.model.regulizers.regulizer import Regularizer
+from src.neural_net.regulizers.regulizer import Regularizer
 
 
 class L2Regularizer(Regularizer):
@@ -24,6 +24,7 @@ class L2Regularizer(Regularizer):
         L2 regularization typically results in weights that
         are small but non-zero.
     """
+
     def __init__(self, lambda_param: float):
         """
         Initialize the L2 regularizer.
@@ -44,7 +45,7 @@ class L2Regularizer(Regularizer):
         Returns:
             float: L2 regularization penalty.
         """
-        return 0.5 * self.lambda_param * np.sum(weights ** 2)
+        return 0.5 * self.lambda_param * np.sum(weights**2)
 
     def gradient(self, weights: np.ndarray) -> np.ndarray:
         """

@@ -5,11 +5,6 @@ from pandas import DataFrame
 
 
 class Model(ABC):
-    def __init__(self):
-        self._layers = []
-        self.losses = None
-        self.optimizer = None
-
     @abstractmethod
     def add(self, layer):
         """

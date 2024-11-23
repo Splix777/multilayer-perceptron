@@ -1,6 +1,6 @@
 import numpy as np
 
-from src.model.activations.activation import Activation
+from src.neural_net.activations.activation import Activation
 
 
 class Tanh(Activation):
@@ -18,6 +18,7 @@ class Tanh(Activation):
     normalized to a range that centers around zero, making
     it effective for certain types of data normalization tasks.
     """
+
     def __call__(self, x: np.ndarray) -> np.ndarray:
         """
         Apply the Tanh activation function.
@@ -50,4 +51,4 @@ class Tanh(Activation):
         Returns:
             dict: Configuration dictionary.
         """
-        return {'name': self.__class__.__name__}
+        return {"name": self.__class__.__name__}

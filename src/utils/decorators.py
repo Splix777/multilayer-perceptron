@@ -17,12 +17,14 @@ KNOWN_EXCEPTIONS: Tuple[Type[Exception], ...] = (
     RuntimeError,
     AttributeError,
     JSONDecodeError,
-    OSError
+    OSError,
 )
 
+
 def error_handler(
-        exceptions_to_handle: Tuple[Type[Exception], ...] = (),
-        suppress: bool = False) -> Callable:
+    exceptions_to_handle: Tuple[Type[Exception], ...] = (),
+    suppress: bool = False,
+) -> Callable:
     """
     Decorator to handle exceptions in the decorated method.
     """
@@ -43,12 +45,12 @@ def error_handler(
                 logger.error(msg, exc_info=True)
                 if not suppress:
                     raise e
-            
+
             except Exception as e:
                 msg: str = (
                     f"Unexpected error in {method.__qualname__} "
                     f"({method.__module__}): {e}"
-                )                
+                )
                 logger.error(msg, exc_info=True)
                 raise e
 
@@ -61,6 +63,7 @@ def timeit(method: Callable[..., Any]) -> Callable[..., Any]:
     """
     Decorator to measure execution time of a function.
     """
+
     @wraps(method)
     def wrapper(*args: Tuple, **kwargs: dict) -> Any:
         start_time: float = time.time()
@@ -74,14 +77,14 @@ def timeit(method: Callable[..., Any]) -> Callable[..., Any]:
     return wrapper
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
+
     @error_handler(suppress=True)
     def test_error_handler() -> None:
         """Test function for the error_handler decorator."""
-        with open('non_existent_file.txt', 'r') as f:
+        with open("non_existent_file.txt", "r") as f:
             f.read
-            
-    
+
     @timeit
     def test_timeit() -> None:
         """Test function for the timeit decorator."""
@@ -89,4 +92,3 @@ if __name__ == '__main__':
 
     test_timeit()
     test_error_handler()
-

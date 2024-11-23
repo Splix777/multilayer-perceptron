@@ -1,6 +1,6 @@
 import numpy as np
 
-from src.model.layers.layer import Layer
+from src.neural_net.layers.layer import Layer
 
 
 class InputLayer(Layer):
@@ -13,8 +13,6 @@ class InputLayer(Layer):
                                  Example: (batch_size, input_dim)
         """
         super().__init__(input_shape=input_shape, trainable=False)
-        self.input_shape = input_shape
-        self._output_shape = input_shape
 
     def build(self, input_shape: tuple[int, ...]) -> tuple[int, ...]:
         """
@@ -35,9 +33,9 @@ class InputLayer(Layer):
         if any(dim <= 0 for dim in input_shape):
             raise ValueError("All dimensions must be positive integers.")
 
-        self._output_shape = input_shape
+        self.output_shape = input_shape
         self.built = True
-        return self._output_shape
+        return self.output_shape
 
     def call(self, inputs: np.ndarray) -> np.ndarray:
         """
@@ -75,23 +73,6 @@ class InputLayer(Layer):
             raise ValueError("The layer has not been built yet.")
 
         return loss_gradients
-
-    @property
-    def output_shape(self) -> tuple[int, ...]:
-        """
-        Return the shape of the output from the layer.
-        For InputLayer, it returns the input_shape.
-
-        Returns:
-            tuple: Shape of the output from the layer.
-
-        Raises:
-            ValueError: If the layer has not been built.
-        """
-        if not self.built:
-            raise ValueError("The layer has not been built yet.")
-
-        return self._output_shape
 
     def count_parameters(self) -> int:
         """

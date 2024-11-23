@@ -47,10 +47,8 @@ class BinaryCrossEntropy(Loss):
         y_pred = np.clip(y_pred, epsilon, 1.0 - epsilon)
 
         # Calculate binary cross-entropy losses
-        loss = - np.mean(
-            y_true * np.log(y_pred)
-            + (1 - y_true)
-            * np.log(1 - y_pred)
+        loss = -np.mean(
+            y_true * np.log(y_pred) + (1 - y_true) * np.log(1 - y_pred)
         )
 
         return float(loss)
@@ -88,6 +86,4 @@ class BinaryCrossEntropy(Loss):
         Returns:
             dict: Configuration of the Binary Cross-Entropy losses function.
         """
-        return {
-            'name': self.__class__.__name__
-        }
+        return {"name": self.__class__.__name__}

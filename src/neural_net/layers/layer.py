@@ -1,11 +1,12 @@
-import numpy as np
-
+from typing import Optional
 from abc import ABC, abstractmethod
+import numpy as np
 
 
 class Layer(ABC):
-    def __init__(self, input_shape: tuple[int, ...] = None,
-                 trainable: bool = True):
+    def __init__(
+        self, input_shape: Optional[tuple[int, ...]] = None, trainable: bool = True
+    ):
         """
         Initialize the Layer with common properties.
 
@@ -13,29 +14,22 @@ class Layer(ABC):
             trainable (bool): Whether the layer's weights
                 are trainable. Defaults to True.
         """
-        self.trainable = trainable
+        self.trainable: bool = trainable
 
         if input_shape is not None:
-            self.input_shape = input_shape
-
-        self.built = False
-        self.weights = None
-        self.bias = None
-        self._output_shape = None
-        self.weights_gradients = None
-        self.bias_gradients = None
-        self.kernel_initializer = None
-        self.kernel_regularizer = None
-        self.bias_initializer = None
-        self.optimizer = None
+            self.input_shape: tuple[int, ...] = input_shape
 
     def __str__(self) -> str:
-        return (f"{self.__class__.__name__}(trainable={self.trainable}, "
-                f"output_shape={self.output_shape})")
+        return (
+            f"{self.__class__.__name__}(trainable={self.trainable}, "
+            f"output_shape={self.output_shape})"
+        )
 
     def __repr__(self) -> str:
-        return (f"{self.__class__.__name__}(trainable={self.trainable}, "
-                f"built={self.built})")
+        return (
+            f"{self.__class__.__name__}(trainable={self.trainable}, "
+            f"built={self.built})"
+        )
 
     def __len__(self) -> int:
         return self.count_parameters()
@@ -96,16 +90,6 @@ class Layer(ABC):
         """
         pass
 
-    @property
-    @abstractmethod
-    def output_shape(self) -> tuple[int, ...]:
-        """
-        Return the shape of the output from the layer.
-
-        Returns:
-            tuple[int, ...]: Shape of the output from the layer.
-        """
-        pass
 
     @abstractmethod
     def count_parameters(self) -> int:
@@ -146,4 +130,18 @@ class Layer(ABC):
 
     @built.setter
     def built(self, value: bool):
-        self._built = value
+        self._built: bool = value
+
+    @property
+    def output_shape(self) -> tuple[int, ...]:
+        """
+        Return the shape of the output from the layer.
+
+        Returns:
+            tuple[int, ...]: Shape of the output from the layer.
+        """
+        return self._output_shape
+
+    @output_shape.setter
+    def output_shape(self, value: tuple[int, ...]):
+        self._output_shape: tuple[int, ...] = value

@@ -1,6 +1,6 @@
 import numpy as np
 
-from src.model.optimizers.optimizer import Optimizer
+from src.neural_net.optimizers.optimizer import Optimizer
 
 
 class AdamOptimizer(Optimizer):
@@ -39,8 +39,9 @@ class AdamOptimizer(Optimizer):
         and helps in handling sparse gradients and noisy data.
     """
 
-    def __init__(self, beta1=0.9, beta2=0.999, epsilon=1e-8,
-                 learning_rate=0.001):
+    def __init__(
+        self, beta1=0.9, beta2=0.999, epsilon=1e-8, learning_rate=0.001
+    ):
         super().__init__()
         self.beta1 = beta1
         self.beta2 = beta2
@@ -68,8 +69,13 @@ class AdamOptimizer(Optimizer):
         self.m_bias = np.zeros(bias_shape)
         self.v_bias = np.zeros(bias_shape)
 
-    def update(self, weights: np.ndarray, bias: np.ndarray,
-               weights_gradients: np.ndarray, bias_gradients: np.ndarray):
+    def update(
+        self,
+        weights: np.ndarray,
+        bias: np.ndarray,
+        weights_gradients: np.ndarray,
+        bias_gradients: np.ndarray,
+    ):
         """
         Update the weights and biases using the Adam optimization.
 
@@ -88,24 +94,30 @@ class AdamOptimizer(Optimizer):
         self.iterations += 1
 
         # Update weights moments
-        self.m_weights = (self.beta1 * self.m_weights
-                          + (1 - self.beta1) * weights_gradients)
-        self.v_weights = (self.beta2 * self.v_weights
-                          + (1 - self.beta2) * (weights_gradients ** 2))
-        m_hat_weights = self.m_weights / (1 - self.beta1 ** self.iterations)
-        v_hat_weights = self.v_weights / (1 - self.beta2 ** self.iterations)
-        updated_weights = (weights - self.learning_rate * m_hat_weights
-                           / (np.sqrt(v_hat_weights) + self.epsilon))
+        self.m_weights = (
+            self.beta1 * self.m_weights + (1 - self.beta1) * weights_gradients
+        )
+        self.v_weights = self.beta2 * self.v_weights + (1 - self.beta2) * (
+            weights_gradients**2
+        )
+        m_hat_weights = self.m_weights / (1 - self.beta1**self.iterations)
+        v_hat_weights = self.v_weights / (1 - self.beta2**self.iterations)
+        updated_weights = weights - self.learning_rate * m_hat_weights / (
+            np.sqrt(v_hat_weights) + self.epsilon
+        )
 
         # Update biases moments
-        self.m_bias = (self.beta1 * self.m_bias
-                       + (1 - self.beta1) * bias_gradients)
-        self.v_bias = (self.beta2 * self.v_bias
-                       + (1 - self.beta2) * (bias_gradients ** 2))
-        m_hat_bias = self.m_bias / (1 - self.beta1 ** self.iterations)
-        v_hat_bias = self.v_bias / (1 - self.beta2 ** self.iterations)
-        updated_biases = (bias - self.learning_rate * m_hat_bias
-                          / (np.sqrt(v_hat_bias) + self.epsilon))
+        self.m_bias = (
+            self.beta1 * self.m_bias + (1 - self.beta1) * bias_gradients
+        )
+        self.v_bias = self.beta2 * self.v_bias + (1 - self.beta2) * (
+            bias_gradients**2
+        )
+        m_hat_bias = self.m_bias / (1 - self.beta1**self.iterations)
+        v_hat_bias = self.v_bias / (1 - self.beta2**self.iterations)
+        updated_biases = bias - self.learning_rate * m_hat_bias / (
+            np.sqrt(v_hat_bias) + self.epsilon
+        )
 
         return updated_weights, updated_biases
 
@@ -114,8 +126,8 @@ class AdamOptimizer(Optimizer):
         Get the configuration of the optimizer.
         """
         return {
-            'learning_rate': self.learning_rate,
-            'beta1': self.beta1,
-            'beta2': self.beta2,
-            'epsilon': self.epsilon
+            "learning_rate": self.learning_rate,
+            "beta1": self.beta1,
+            "beta2": self.beta2,
+            "epsilon": self.epsilon,
         }

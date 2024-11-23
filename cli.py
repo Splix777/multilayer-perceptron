@@ -74,26 +74,29 @@ def train_model(mlp: MultiLayerPerceptron):
         None
     """
     data_path = input("Please provide a path to the data file: ").lower()
-    if not os.path.exists(data_path) or not data_path.endswith('.csv'):
+    if not os.path.exists(data_path) or not data_path.endswith(".csv"):
         print("File does not exist or is not a CSV file. Exiting...")
         sys.exit(0)
 
     model_config = input(
-        "Do you want to load a custom model configuration? (y/n): ").lower()
+        "Do you want to load a custom model configuration? (y/n): "
+    ).lower()
 
     conf_path = None
     configure_new = None
-    if model_config == 'y':
+    if model_config == "y":
         conf_path = input(
-            "Please provide a path to the model configuration file: ")
-        if not os.path.exists(conf_path) or not conf_path.endswith('.json'):
+            "Please provide a path to the model configuration file: "
+        )
+        if not os.path.exists(conf_path) or not conf_path.endswith(".json"):
             print("File does not exist. Exiting...")
             sys.exit(0)
     else:
         configure_new = input(
-            "Do you want to configure a new model? (y/n): ").lower()
+            "Do you want to configure a new model? (y/n): "
+        ).lower()
 
-    if configure_new == 'y':
+    if configure_new == "y":
         conf_path = configure_new_model()
     if not conf_path:
         print("No model configuration provided. Exiting...")
@@ -142,19 +145,26 @@ def configure_new_model() -> Path:
     Returns:
         Path: The path to the saved model configuration file.
     """
-    possible_layers = {'dense': 'Dense Layer', 'dropout': 'Dropout Layer'}
-    possible_activations = {'relu': 'ReLU', 'lrelu': 'Leaky ReLU',
-                            'prelu': 'Parametric ReLU',
-                            'sigmoid': 'Sigmoid',
-                            'tanh': 'Hyperbolic Tangent (Tanh)',
-                            'softmax': 'Softmax'}
-    possible_kernel_initializers = {'glorot_uniform': 'Glorot Uniform',
-                                    'glorot_normal': 'Glorot Normal',
-                                    'he_normal': 'He Normal',
-                                    'he_uniform': 'He Uniform'}
-    possible_optimizers = {'adam': 'Adam', 'rmsprop': 'RMSprop'}
-    possible_losses = {'categorical_crossentropy': 'Categorical Crossentropy',
-                       'binary_crossentropy': 'Binary Crossentropy'}
+    possible_layers = {"dense": "Dense Layer", "dropout": "Dropout Layer"}
+    possible_activations = {
+        "relu": "ReLU",
+        "lrelu": "Leaky ReLU",
+        "prelu": "Parametric ReLU",
+        "sigmoid": "Sigmoid",
+        "tanh": "Hyperbolic Tangent (Tanh)",
+        "softmax": "Softmax",
+    }
+    possible_kernel_initializers = {
+        "glorot_uniform": "Glorot Uniform",
+        "glorot_normal": "Glorot Normal",
+        "he_normal": "He Normal",
+        "he_uniform": "He Uniform",
+    }
+    possible_optimizers = {"adam": "Adam", "rmsprop": "RMSprop"}
+    possible_losses = {
+        "categorical_crossentropy": "Categorical Crossentropy",
+        "binary_crossentropy": "Binary Crossentropy",
+    }
 
     model_name = input("Enter the name of the model: ").strip()
     if not model_name:
@@ -166,31 +176,33 @@ def configure_new_model() -> Path:
         print("Invalid number of layers. Exiting...")
         sys.exit(0)
 
-    layers = [{
-        'type': 'input',
-        'input_shape': 30
-    }]
+    layers = [{"type": "input", "input_shape": 30}]
     for i in range(int(num_layers)):
         print(f"\nConfiguring layer {i + 1}")
         layer_type = get_user_choice("Select layer type:", possible_layers)
-        if layer_type == 'dense':
+        if layer_type == "dense":
             units = input(f"Enter the size of layer {i + 1}: ").strip()
             if not units.isdigit():
                 print("Invalid size. Exiting...")
                 sys.exit(0)
-            activation = get_user_choice("Select activation function:",
-                                         possible_activations)
-            kernel_initializer = get_user_choice("Select kernel initializer:",
-                                                 possible_kernel_initializers)
-            layers.append({
-                'type': 'dense',
-                'units': int(units),
-                'activation': activation,
-                'kernel_initializer': kernel_initializer
-            })
-        elif layer_type == 'dropout':
+            activation = get_user_choice(
+                "Select activation function:", possible_activations
+            )
+            kernel_initializer = get_user_choice(
+                "Select kernel initializer:", possible_kernel_initializers
+            )
+            layers.append(
+                {
+                    "type": "dense",
+                    "units": int(units),
+                    "activation": activation,
+                    "kernel_initializer": kernel_initializer,
+                }
+            )
+        elif layer_type == "dropout":
             drop_rate = input(
-                f"Enter the dropout rate for layer {i + 1} (0-1): ").strip()
+                f"Enter the dropout rate for layer {i + 1} (0-1): "
+            ).strip()
             try:
                 drop_rate = float(drop_rate)
                 if not (0 <= drop_rate <= 1):
@@ -198,15 +210,8 @@ def configure_new_model() -> Path:
             except ValueError:
                 print("Invalid dropout rate. Exiting...")
                 sys.exit(0)
-            layers.append({
-                'type': 'dropout',
-                'rate': drop_rate
-            })
-    layers.append({
-        'type': 'dense',
-        'units': 2,
-        'activation': 'softmax'
-    })
+            layers.append({"type": "dropout", "rate": drop_rate})
+    layers.append({"type": "dense", "units": 2, "activation": "softmax"})
 
     optimizer = get_user_choice("Select optimizer:", possible_optimizers)
     learning_rate = input("Enter the learning rate: ").strip()
@@ -217,10 +222,7 @@ def configure_new_model() -> Path:
     except ValueError:
         print("Invalid learning rate. Exiting...")
         sys.exit(0)
-    final_optimizer = {
-        'type': optimizer,
-        'learning_rate': learning_rate
-    }
+    final_optimizer = {"type": optimizer, "learning_rate": learning_rate}
 
     loss = get_user_choice("Select loss function:", possible_losses)
 
@@ -235,16 +237,16 @@ def configure_new_model() -> Path:
         sys.exit(0)
 
     final_config = {
-        'model_name': model_name,
-        'layers': layers,
-        'optimizer': final_optimizer,
-        'loss': loss,
-        'batch_size': int(batch_size),
-        'epochs': int(epochs)
+        "model_name": model_name,
+        "layers": layers,
+        "optimizer": final_optimizer,
+        "loss": loss,
+        "batch_size": int(batch_size),
+        "epochs": int(epochs),
     }
 
     save_path = config.model_dir / f"{model_name}.json"
-    with open(save_path, 'w') as f:
+    with open(save_path, "w") as f:
         json.dump(final_config, f, indent=4)
 
     print(f"Configuration saved to {save_path}")
@@ -304,27 +306,29 @@ def main():
 
     if os.path.exists(model_path):
         response = input(
-            "Model exists. Do you want to load it? (y/n): ").lower()
-        if response == 'y':
+            "Model exists. Do you want to load it? (y/n): "
+        ).lower()
+        if response == "y":
             action = input(
-                "Do you want to predict | evaluate the model? (p/e): ").lower()
-            if action == 'p':
+                "Do you want to predict | evaluate the model? (p/e): "
+            ).lower()
+            if action == "p":
                 load_model_and_predict(mlp, model_path)
-            elif action == 'e':
+            elif action == "e":
                 load_model_and_evaluate(mlp, model_path)
             else:
                 print("Invalid option. Exiting...")
         else:
             response = input(
-                "Do you want to re-train the model? (y/n): ").lower()
-            if response == 'y':
+                "Do you want to re-train the model? (y/n): "
+            ).lower()
+            if response == "y":
                 train_model(mlp)
             else:
                 print("Exiting...")
     else:
-        response = input(
-            "Do you want to train a model? (y/n): ").lower()
-        if response == 'y':
+        response = input("Do you want to train a model? (y/n): ").lower()
+        if response == "y":
             train_model(mlp)
         else:
             print("Exiting...")

@@ -1,6 +1,6 @@
 import numpy as np
 
-from src.model.activations.activation import Activation
+from src.neural_net.activations.activation import Activation
 
 
 class Sigmoid(Activation):
@@ -18,6 +18,7 @@ class Sigmoid(Activation):
     Despite this limitation, sigmoid remains widely used in
     the output layer of binary classification models.
     """
+
     def __call__(self, x: np.ndarray) -> np.ndarray:
         """
         Apply the Sigmoid activation function.
@@ -50,4 +51,4 @@ class Sigmoid(Activation):
         Returns:
             dict: Configuration dictionary.
         """
-        return {'name': self.__class__.__name__}
+        return {"name": self.__class__.__name__}
