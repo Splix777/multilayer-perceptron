@@ -47,6 +47,9 @@ class Sequential(Model):
             ValueError: If the layer is not an instance of Layer.
         """
         if not isinstance(layer, Layer):
+            self.logger.error(
+                f"Layer: {layer.__class__.__name__} is not an instance of Layer."
+            )
             raise ValueError("You can only add a Layer instance to the model.")
 
         # The First layer should specify the input shape

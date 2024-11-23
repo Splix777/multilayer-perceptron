@@ -1,9 +1,7 @@
+from typing import Tuple
 import numpy as np
 
-from src.neural_net.layers.layer import Layer
-
-
-class InputLayer(Layer):
+class InputLayer:
     def __init__(self, input_shape: tuple[int, ...], **kwargs):
         """
         Initialize the InputLayer with the given input shape.
@@ -12,7 +10,29 @@ class InputLayer(Layer):
             input_shape (tuple): Shape of the input tensor.
                                  Example: (batch_size, input_dim)
         """
-        super().__init__(input_shape=input_shape, trainable=False)
+        self.trainable = False
+        self.built = False
+        self.input_shape: Tuple[int, ...] = input_shape
+        self.output_shape: Tuple[int, ...] = input_shape
+
+    def __call__(self, inputs: np.ndarray) -> np.ndarray:
+        """
+        Perform the forward pass.
+        For InputLayer, it simply returns the input tensor.
+
+        Args:
+            inputs (np.ndarray): Input data or features.
+
+        Returns:
+            np.ndarray: Output tensor (same as input).
+
+        Raises:
+            ValueError: If the layer is not built.
+        """
+        if not self.built:
+            raise ValueError("InputLayer not built. Call build() first.")
+
+        return inputs
 
     def build(self, input_shape: tuple[int, ...]) -> tuple[int, ...]:
         """

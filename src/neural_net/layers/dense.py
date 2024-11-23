@@ -1,7 +1,6 @@
 import numpy as np
 from typing import Optional
 
-from src.neural_net.layers.layer import Layer
 from src.neural_net.activations.leaky_relu import LeakyReLU
 from src.neural_net.activations.parametric_relu import ParametricReLU
 from src.neural_net.activations.relu import ReLU
@@ -15,7 +14,7 @@ from src.neural_net.optimizers.optimizer import Optimizer
 from src.utils.logger import Logger
 
 
-class Dense(Layer):
+class Dense:
     def __init__(
         self,
         units: int,
@@ -44,13 +43,15 @@ class Dense(Layer):
                 strategy for bias weights. Defaults to None.
             **kwargs: Additional keyword arguments.
         """
-        super().__init__(**kwargs)
+        self.trainable = True
+        self.built = False
+        self.input_shape: tuple[int, ...] = (0,0)
+        self.output_shape: tuple[int, ...] = (0,0)
         self.logger = Logger("Dense")
         self.units: int = units
         self.kernel_initializer: str = kernel_initializer
         self.kernel_regularizer: str | Regularizer | None = kernel_regularizer
         self.bias_initializer: str = bias_initializer
-        self.output_shape: Optional[tuple[int, ...]] = None
         self.optimizer: Optional[Optimizer] = None
         self.weights: Optional[np.ndarray] = None
         self.bias: Optional[np.ndarray]  = None
@@ -68,79 +69,18 @@ class Dense(Layer):
             "softmax": Softmax(),
         }.get(activation)
 
-    def _initialize_weights(self, input_shape: tuple[int, ...]) -> None:
+    def __call__(self, inputs: np.ndarray) -> np.ndarray:
         """
-        Initialize the weights of the Dense layer using
-        the given input shape.
+        Perform the forward pass through the Dense layer.
 
         Args:
-            input_shape (tuple): Shape of the input tensor
-                (batch_size, input_dim).
+            inputs (np.ndarray): Input data or features
+                of shape (batch_size, input_dim).
 
         Returns:
-            None
+            np.ndarray: Output tensor of shape (batch_size, units).
         """
-        # Number of Features
-        fan_in = input_shape[-1]
-        # Number of Neurons
-        fan_out = self.units
-
-        if self.kernel_initializer == "glorot_uniform":
-            limit = np.sqrt(6 / (fan_in + fan_out))
-            self.weights = np.random.uniform(
-                -limit, limit, size=(fan_in, fan_out)
-            )
-        elif self.kernel_initializer == "glorot_normal":
-            std_dev = np.sqrt(2 / (fan_in + fan_out))
-            self.weights = np.random.normal(0, std_dev, size=(fan_in, fan_out))
-        elif self.kernel_initializer == "he_uniform":
-            limit = np.sqrt(6 / fan_in)
-            self.weights = np.random.uniform(
-                -limit, limit, size=(fan_in, fan_out)
-            )
-        elif self.kernel_initializer == "he_normal":
-            std_dev = np.sqrt(2 / fan_in)
-            self.weights = np.random.normal(0, std_dev, size=(fan_in, fan_out))
-        else:
-            raise ValueError(
-                f"Unknown kernel initializer: " f"{self.kernel_initializer}"
-            )
-
-    def _initialize_bias(self) -> None:
-        """
-        Initialize the bias of the Dense layer.
-
-        Returns:
-            None
-        """
-        if self.bias_initializer == "zeros":
-            self.bias = np.zeros((1, self.units))
-        elif self.bias_initializer == "ones":
-            self.bias = np.ones((1, self.units))
-        elif self.bias_initializer == "random_normal":
-            self.bias = np.random.randn(1, self.units)
-        elif self.bias_initializer == "random_uniform":
-            self.bias = np.random.rand(1, self.units)
-        else:
-            raise ValueError(
-                f"Unknown bias initializer: " f"{self.bias_initializer}"
-            )
-
-    def _initialize_regularizer(self) -> None:
-        """
-        Initialize the kernel regularizer of the Dense layer.
-
-        Returns:
-            None
-        """
-        if self.kernel_regularizer == "l1":
-            self.kernel_regularizer = L1Regularizer(lambda_param=0.01)
-        elif self.kernel_regularizer == "l2":
-            self.kernel_regularizer = L2Regularizer(lambda_param=0.01)
-        else:
-            raise ValueError(
-                f"Unknown kernel regularizer: " f"{self.kernel_regularizer}"
-            )
+        return self.call(inputs)
 
     def build(self, input_shape: tuple[int, ...]) -> tuple[int, ...]:
         """
@@ -154,6 +94,11 @@ class Dense(Layer):
         Returns:
             tuple: Shape of the output tensor (batch_size, units).
         """
+        self.logger.info(f"Building Dense layer with input shape: {input_shape}")
+        if not isinstance(input_shape, tuple) or not input_shape:
+            raise ValueError("Input shape must be a non-empty tuple.")
+        if any(dim <= 0 for dim in input_shape):
+            raise ValueError("All dimensions must be positive integers.")
         self._initialize_weights(input_shape)
         self._initialize_bias()
         if self.kernel_regularizer:
@@ -250,11 +195,86 @@ class Dense(Layer):
         self.weights = weights
         self.bias = bias
 
+    def _initialize_weights(self, input_shape: tuple[int, ...]) -> None:
+        """
+        Initialize the weights of the Dense layer using
+        the given input shape.
+
+        Args:
+            input_shape (tuple): Shape of the input tensor
+                (batch_size, input_dim).
+
+        Returns:
+            None
+        """
+        # Number of Features
+        fan_in: int = input_shape[-1]
+        # Number of Neurons
+        fan_out: int = self.units
+
+        if self.kernel_initializer == "glorot_uniform":
+            limit = np.sqrt(6 / (fan_in + fan_out))
+            self.weights = np.random.uniform(
+                -limit, limit, size=(fan_in, fan_out)
+            )
+        elif self.kernel_initializer == "glorot_normal":
+            std_dev = np.sqrt(2 / (fan_in + fan_out))
+            self.weights = np.random.normal(0, std_dev, size=(fan_in, fan_out))
+        elif self.kernel_initializer == "he_uniform":
+            limit = np.sqrt(6 / fan_in)
+            self.weights = np.random.uniform(
+                -limit, limit, size=(fan_in, fan_out)
+            )
+        elif self.kernel_initializer == "he_normal":
+            std_dev = np.sqrt(2 / fan_in)
+            self.weights = np.random.normal(0, std_dev, size=(fan_in, fan_out))
+        else:
+            raise ValueError(
+                f"Unknown kernel initializer: " f"{self.kernel_initializer}"
+            )
+
+    def _initialize_bias(self) -> None:
+        """
+        Initialize the bias of the Dense layer.
+
+        Returns:
+            None
+        """
+        if self.bias_initializer == "zeros":
+            self.bias = np.zeros((1, self.units))
+        elif self.bias_initializer == "ones":
+            self.bias = np.ones((1, self.units))
+        elif self.bias_initializer == "random_normal":
+            self.bias = np.random.randn(1, self.units)
+        elif self.bias_initializer == "random_uniform":
+            self.bias = np.random.rand(1, self.units)
+        else:
+            raise ValueError(
+                f"Unknown bias initializer: " f"{self.bias_initializer}"
+            )
+
+    def _initialize_regularizer(self) -> None:
+        """
+        Initialize the kernel regularizer of the Dense layer.
+
+        Returns:
+            None
+        """
+        if self.kernel_regularizer == "l1":
+            self.kernel_regularizer = L1Regularizer(lambda_param=0.01)
+        elif self.kernel_regularizer == "l2":
+            self.kernel_regularizer = L2Regularizer(lambda_param=0.01)
+        else:
+            raise ValueError(
+                f"Unknown kernel regularizer: " f"{self.kernel_regularizer}"
+            )
+
     @property
-    def learning_rate(self):
+    def learning_rate(self) -> float:
         """
         Get the learning rate of the optimizer.
         """
         if not self.optimizer:
             raise ValueError("Optimizer not found.")
+
         return self.optimizer.learning_rate

@@ -1,9 +1,7 @@
 import numpy as np
 
-from src.neural_net.layers.layer import Layer
 
-
-class Dropout(Layer):
+class Dropout:
     def __init__(self, rate: float):
         """
         Initialize a Dropout layer with the given rate.
@@ -11,12 +9,27 @@ class Dropout(Layer):
         Args:
             rate (float): Fraction of the input units to drop.
         """
-        super().__init__(trainable=False)
+        self.trainable = False
+        self.built = False
+        self.input_shape: tuple[int, ...] = (0, 0)
+        self.output_shape: tuple[int, ...] = (0, 0)
         if not 0 <= rate < 1:
             raise ValueError("Dropout rate must be in the range [0, 1).")
-        self.rate = rate
+        self.rate: float = rate
         self.train_mode = True
         self.mask = None
+
+    def __call__(self, inputs: np.ndarray) -> np.ndarray:
+        """
+        Perform the forward pass.
+
+        Args:
+            inputs (np.ndarray): Input data or features.
+
+        Returns:
+            np.ndarray: Output tensor.
+        """
+        return self.call(inputs)
 
     def build(self, input_shape: tuple[int, ...]) -> tuple[int, ...]:
         """
@@ -28,8 +41,8 @@ class Dropout(Layer):
         Returns:
             tuple: Shape of the output tensor.
         """
-        self._output_shape = input_shape
-        return self._output_shape
+        self.output_shape: tuple[int, ...] = input_shape
+        return self.output_shape
 
     def call(self, inputs: np.ndarray) -> np.ndarray:
         """
@@ -62,16 +75,6 @@ class Dropout(Layer):
         if self.train_mode:
             return loss_gradients * self.mask / (1 - self.rate)
         return loss_gradients
-
-    @property
-    def output_shape(self) -> tuple[int, ...]:
-        """
-        Return the shape of the output tensor.
-
-        Returns:
-            tuple: Shape of the output tensor.
-        """
-        return self._output_shape
 
     def count_parameters(self) -> int:
         """
