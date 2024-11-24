@@ -8,3 +8,6 @@ class SplitData(BaseModel):
     y_train: NDArray[np.float64] | NDArray[np.intp]
     X_val: NDArray[np.float64]
     y_val: NDArray[np.float64] | NDArray[np.intp]
+
+    class Config:
+        arbitrary_types_allowed = True

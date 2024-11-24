@@ -24,14 +24,17 @@ from src.neural_net.losses.categorical_cross_entropy import (
 from src.neural_net.callbacks.callback import Callback
 
 from src.utils.logger import Logger
-from src.neural_net.utils.label_encoding import one_hot_encoding, label_encoding
+from src.neural_net.utils.label_encoding import (
+    one_hot_encoding,
+    label_encoding,
+)
 from src.neural_net.utils.data_batch_utils import shuffle_data, iter_batches
 
 
 class Sequential(Model):
     def __init__(self) -> None:
         self.logger: Logger = Logger("Sequential")
-        self.losses= {"training": {}, "validation": {}}
+        self.losses = {"training": {}, "validation": {}}
         self.accuracy = {"training": {}, "validation": {}}
 
         self.layers: list[Layer] = []
@@ -167,6 +170,10 @@ class Sequential(Model):
         batch_size: int = 32,
         verbose: bool = False,
         val_split: float = 0.2,
+        batch_size_mode: str = "fixed",
+        min_batch_size: int = 16,
+        max_batch_size: int = 128,
+        batch_size_factor: float = 1.1,
     ) -> None:
         """
         Train the model using the provided training data
@@ -185,6 +192,14 @@ class Sequential(Model):
                 Defaults to 32.
             verbose (bool, optional): Whether to print training
                 progress. Defaults to False.
+            batch_size_mode (str, optional): Mode for batch size
+                adjustment. Must be 'auto' or 'fixed'. Defaults to 'fixed'.
+            min_batch_size (int, optional): Minimum batch size allowed
+                in 'auto' mode. Defaults to 16.
+            max_batch_size (int, optional): Maximum batch size allowed
+                in 'auto' mode. Defaults to 128.
+            batch_size_factor (float, optional): Scaling factor for
+                batch size. Defaults to 1.1.
 
         Raises:
             ValueError: If input data types are incorrect.
@@ -197,20 +212,25 @@ class Sequential(Model):
             callbacks=callbacks,
             batch_size=batch_size,
             verbose=verbose,
+            batch_size_mode=batch_size_mode,
+            min_batch_size=min_batch_size,
+            max_batch_size=max_batch_size,
+            batch_size_factor=batch_size_factor,
         )
         split_data: SplitData = self._split_data(
             params.X, params.val_data, params.val_split
         )
 
+        previous_train_loss = None
+
         for epoch in range(params.epochs):
             if self.stop_condition:
                 break
 
-            X_train, y_train = shuffle_data(x=split_data.X_train, y=split_data.y_train)
             train_loss = []
             train_accuracy = []
 
-            for X_batch, y_batch in iter_batches(X_train, y_train, batch_size):
+            for X_batch, y_batch in iter_batches(split_data.X_train, split_data.y_train, batch_size):
                 loss_value, accuracy = self._train_batch(X_batch, y_batch)
                 train_loss.append(loss_value)
                 train_accuracy.append(accuracy)
@@ -229,6 +249,21 @@ class Sequential(Model):
                     f"Val Accuracy: {log['val_accuracy']:.3f}, "
                     f"Val Loss: {log['val_loss']:.3f}"
                 )
+
+            # Adjust batch size if necessary
+            if batch_size_mode == "auto":
+                if previous_train_loss is not None:
+                    # If loss decreased significantly, increase the batch size
+                    if train_loss[-1] < previous_train_loss:
+                        new_batch_size = int(batch_size * batch_size_factor)
+                        batch_size = min(new_batch_size, max_batch_size)
+                    # If loss increased, decrease the batch size
+                    elif train_loss[-1] > previous_train_loss:
+                        new_batch_size = int(batch_size / batch_size_factor)
+                        batch_size = max(new_batch_size, min_batch_size)
+
+                # Store the current epoch's loss for comparison in the next epoch
+                previous_train_loss = train_loss[-1]
 
             for callback in callbacks:
                 callback.on_epoch_end(epoch, logs=log)
@@ -428,17 +463,20 @@ class Sequential(Model):
         for layer, (w, b) in zip(self.layers, weights):
             layer.set_weights(weights=w, bias=b)
 
-
     # <-- Validation and Initializer -->
     def _prepare_fit(
-        self, 
-        X: pd.DataFrame, 
-        epochs: int, 
-        val_split: float, 
-        val_data: pd.DataFrame, 
-        callbacks: list[Callback], 
-        batch_size: int, 
-        verbose: bool
+        self,
+        X: pd.DataFrame,
+        epochs: int,
+        val_split: float,
+        val_data: pd.DataFrame,
+        callbacks: list[Callback],
+        batch_size: int,
+        verbose: bool,
+        batch_size_mode: str,
+        min_batch_size: int,
+        max_batch_size: int,
+        batch_size_factor: float,
     ) -> FitParams:
         params = FitParams(
             X=X,
@@ -448,6 +486,10 @@ class Sequential(Model):
             callbacks=callbacks,
             batch_size=batch_size,
             verbose=verbose,
+            batch_size_mode=batch_size_mode,
+            min_batch_size=min_batch_size,
+            max_batch_size=max_batch_size,
+            batch_size_factor=batch_size_factor,
         )
         # Validation
         self._validate_inputs(**params.model_dump())
@@ -464,6 +506,10 @@ class Sequential(Model):
         callbacks: list[Callback],
         batch_size: int,
         verbose: bool,
+        batch_size_mode: str,
+        min_batch_size: int,
+        max_batch_size: int,
+        batch_size_factor: float,
     ) -> None:
         """
         Validate inputs for the fit method.
@@ -480,10 +526,14 @@ class Sequential(Model):
                 callbacks=callbacks,
                 batch_size=batch_size,
                 verbose=verbose,
+                batch_size_mode=batch_size_mode,
+                min_batch_size=min_batch_size,
+                max_batch_size=max_batch_size,
+                batch_size_factor=batch_size_factor,
             )
         except ValidationError as e:
             raise ValueError(f"Invalid inputs to fit method: {e}")
-        
+
         self.epochs: int = params.epochs
         self.val_split: float | None = params.val_split
         self.batch_size: int = params.batch_size
@@ -534,7 +584,6 @@ class Sequential(Model):
         return SplitData(
             X_train=X_train, y_train=y_train, X_val=X_val, y_val=y_val
         )
-
 
     # <-- Metrics and Logging -->
     def _update_metrics(
