@@ -52,8 +52,8 @@ class Dense:
         self.logger = Logger("Dense")
         self.units: int = units
         self.kernel_initializer: str = kernel_initializer
-        self.kernel_regularizer: str | Regularizer | None = kernel_regularizer
         self.bias_initializer: str = bias_initializer
+        self.kernel_regularizer: Optional[str | Regularizer] = kernel_regularizer
         self.optimizer: Optional[Optimizer] = None
         self.weights: Optional[np.ndarray] = None
         self.bias: Optional[np.ndarray]  = None

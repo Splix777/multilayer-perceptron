@@ -200,9 +200,7 @@ class MultiLayerPerceptron:
             val_split=val_split,
         )
 
-    def __build_model(
-        self, validated_config: SequentialModelConfig
-    ) -> Sequential:
+    def __build_model(self, validated_config: SequentialModelConfig) -> Sequential:
         """
         Build a new model using the given configuration.
 

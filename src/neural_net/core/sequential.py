@@ -1,7 +1,14 @@
+from typing import Generator
 import numpy as np
 import pandas as pd
+from numpy.typing import NDArray
 
 from sklearn.model_selection import train_test_split
+from pydantic import ValidationError
+
+from src.schemas.fit_params import FitParams
+from src.schemas.split_data import SplitData
+
 from src.neural_net.core.model import Model
 from src.neural_net.layers.layer import Layer
 from src.neural_net.layers.dropout import Dropout
@@ -15,21 +22,24 @@ from src.neural_net.losses.categorical_cross_entropy import (
     CategoricalCrossEntropy,
 )
 from src.neural_net.callbacks.callback import Callback
+
 from src.utils.logger import Logger
+from src.neural_net.utils.label_encoding import one_hot_encoding, label_encoding
+from src.neural_net.utils.data_batch_utils import shuffle_data, iter_batches
 
 
 class Sequential(Model):
-    def __init__(self):
+    def __init__(self) -> None:
         self.logger: Logger = Logger("Sequential")
-        self.losses: dict[dict, dict] = {"training": {}, "validation": {}}
-        self.accuracy: dict[dict, dict] = {"training": {}, "validation": {}}
+        self.losses= {"training": {}, "validation": {}}
+        self.accuracy = {"training": {}, "validation": {}}
 
-        self._layers: list[Layer] = []
+        self.layers: list[Layer] = []
+        self.callbacks: list[Callback] = []
         self.loss: Loss = None
         self.built = False
-        self.callbacks = None
-        self.stop_training = False
-        self._dropout_active = True
+        self.stop_condition = False
+        self.dropout_active = True
         self.training_mode = True
 
     # <-- Add Layers -->
@@ -53,17 +63,17 @@ class Sequential(Model):
             raise ValueError("You can only add a Layer instance to the model.")
 
         # The First layer should specify the input shape
-        if len(self._layers) == 0:
+        if len(self.layers) == 0:
             if not isinstance(layer, InputLayer) or layer.input_shape is None:
                 raise ValueError("First layer should specify the input shape.")
 
-        if len(self._layers) > 0:
-            layer.input_shape = self._layers[-1].output_shape
+        if len(self.layers) > 0:
+            layer.input_shape = self.layers[-1].output_shape
 
         layer.build(layer.input_shape)
-        self._layers.append(layer)
+        self.layers.append(layer)
 
-        if len(self._layers) > 1:
+        if len(self.layers) > 1:
             self.built = True
 
     # <-- Compile Model -->
@@ -93,7 +103,7 @@ class Sequential(Model):
             else BinaryCrossEntropy()
         )
 
-        for layer in self._layers:
+        for layer in self.layers:
             if layer.trainable:
                 layer.optimizer = (
                     AdamOptimizer(learning_rate)
@@ -119,7 +129,7 @@ class Sequential(Model):
         if not isinstance(inputs, (np.ndarray, list)):
             raise TypeError("Input data must be of type np.ndarray or list.")
 
-        for layer in self._layers:
+        for layer in self.layers:
             inputs = layer.call(inputs)
             if layer.trainable and self.training_mode:
                 inputs = self._apply_regularization(layer, inputs)
@@ -142,7 +152,7 @@ class Sequential(Model):
         TypeError: If loss_gradient is not a numpy array
             or learning_rate is not a float.
         """
-        for layer in reversed(self._layers):
+        for layer in reversed(self.layers):
             loss_gradients = layer.backward(loss_gradients)
             if layer.trainable:
                 self._update_epoch_weights(layer)
@@ -152,11 +162,11 @@ class Sequential(Model):
         self,
         X: pd.DataFrame,
         epochs: int,
-        val_split: float = None,
-        val_data: pd.DataFrame = None,
-        callbacks: list[Callback] = None,
+        val_data: pd.DataFrame,
+        callbacks: list[Callback] = [],
         batch_size: int = 32,
         verbose: bool = False,
+        val_split: float = 0.2,
     ) -> None:
         """
         Train the model using the provided training data
@@ -179,33 +189,36 @@ class Sequential(Model):
         Raises:
             ValueError: If input data types are incorrect.
         """
-        self._validate_inputs(
-            X, epochs, val_split, val_data, callbacks, batch_size, verbose
+        params: FitParams = self._prepare_fit(
+            X=X,
+            epochs=epochs,
+            val_split=val_split,
+            val_data=val_data,
+            callbacks=callbacks,
+            batch_size=batch_size,
+            verbose=verbose,
+        )
+        split_data: SplitData = self._split_data(
+            params.X, params.val_data, params.val_split
         )
 
-        self._init_callbacks(callbacks)
-
-        self.training_mode = True
-
-        X_trn, y_trn, X_val, y_val = self._split_data(X, val_split, val_data)
-
-        for epoch in range(epochs):
-            if self.stop_training:
+        for epoch in range(params.epochs):
+            if self.stop_condition:
                 break
 
-            X_trn, y_trn = self._shuffle_data(X_trn, y_trn)
+            X_train, y_train = shuffle_data(x=split_data.X_train, y=split_data.y_train)
+            train_loss = []
+            train_accuracy = []
 
-            trn_loss = []
-            trn_accuracy = []
-            for X, y in self._iter_batches(X_trn, y_trn, batch_size):
-                loss_value, accuracy = self._train_batch(X, y)
-                trn_loss.append(loss_value)
-                trn_accuracy.append(accuracy)
+            for X_batch, y_batch in iter_batches(X_train, y_train, batch_size):
+                loss_value, accuracy = self._train_batch(X_batch, y_batch)
+                train_loss.append(loss_value)
+                train_accuracy.append(accuracy)
 
             val_loss, val_accuracy = self._eval_validation_data(X_val, y_val)
 
             log = self._update_metrics(
-                trn_loss, trn_accuracy, val_loss, val_accuracy, epoch
+                train_loss, train_accuracy, val_loss, val_accuracy, epoch
             )
 
             if verbose:
@@ -267,26 +280,6 @@ class Sequential(Model):
         return loss, accuracy
 
     # <-- Epoch Methods -->
-    @staticmethod
-    def _iter_batches(X: np.ndarray, y: np.ndarray, batch_size: int):
-        """
-        Iterate over mini-batches of the dataset.
-
-        Args:
-            X (np.ndarray): Input features data.
-            y (np.ndarray): Target labels data.
-            batch_size (int): Number of samples per batch.
-
-        Yields:
-            Tuple[np.ndarray, np.ndarray]: Mini-batches of
-                input features and target labels.
-        """
-        for i in range(0, X.shape[0], batch_size):
-            X_batch = X[i : i + batch_size]
-            y_batch = y[i : i + batch_size]
-
-            yield X_batch, y_batch
-
     def _train_batch(self, X_batch: np.ndarray, y_batch: np.ndarray):
         """
         Train the model on a single batch of data.
@@ -432,25 +425,35 @@ class Sequential(Model):
         Args:
             weights (list): List of weights for each layer.
         """
-        for layer, (w, b) in zip(self._layers, weights):
+        for layer, (w, b) in zip(self.layers, weights):
             layer.set_weights(weights=w, bias=b)
 
+
     # <-- Validation and Initializer -->
-    def _init_callbacks(self, callbacks: list[Callback]):
-        """
-        Initialize the callbacks.
-
-        Args:
-            callbacks (list of objects): List of callback objects.
-        """
-        if callbacks is None:
-            callbacks = []
-        for callback in callbacks:
-            callback.set_model(self)
-            callback.on_train_begin()
-            self.logger.info(f"Init Callback: {callback.__class__.__name__}")
-
-        self.callbacks = callbacks
+    def _prepare_fit(
+        self, 
+        X: pd.DataFrame, 
+        epochs: int, 
+        val_split: float, 
+        val_data: pd.DataFrame, 
+        callbacks: list[Callback], 
+        batch_size: int, 
+        verbose: bool
+    ) -> FitParams:
+        params = FitParams(
+            X=X,
+            epochs=epochs,
+            val_split=val_split,
+            val_data=val_data,
+            callbacks=callbacks,
+            batch_size=batch_size,
+            verbose=verbose,
+        )
+        # Validation
+        self._validate_inputs(**params.model_dump())
+        # Callbacks initialization
+        self._init_callbacks(params.callbacks or [])
+        return params
 
     def _validate_inputs(
         self,
@@ -461,43 +464,49 @@ class Sequential(Model):
         callbacks: list[Callback],
         batch_size: int,
         verbose: bool,
-    ):
+    ) -> None:
         """
         Validate inputs for the fit method.
 
         Raises:
             ValueError: If input data types or values are incorrect.
         """
-        if not isinstance(X, pd.DataFrame):
-            raise ValueError("X should be a pandas DataFrame.")
-        if val_data is not None and not isinstance(val_data, pd.DataFrame):
-            raise ValueError("val_data should be a pandas DataFrame.")
-        if val_data is None and val_split is None:
-            raise ValueError("You must provide either val_split or val_data.")
-        if val_data is None and not (0 < val_split < 1):
-            raise ValueError("val_split should be a float between 0 and 1.")
-        if not isinstance(epochs, int) or epochs < 1:
-            raise ValueError("Number of epochs should be a positive integer.")
-        if not isinstance(batch_size, int) or batch_size < 1:
-            raise ValueError("Batch size should be a positive integer.")
-        if callbacks is not None:
-            if not isinstance(callbacks, list):
-                raise ValueError("Callbacks must be a list callback objects.")
-            for callback in callbacks:
-                if not isinstance(callback, Callback):
-                    raise ValueError("Callbacks must be instance of Callback.")
-        if not isinstance(verbose, bool):
-            raise ValueError("Verbose should be a boolean value.")
+        try:
+            params = FitParams(
+                X=X,
+                epochs=epochs,
+                val_split=val_split,
+                val_data=val_data,
+                callbacks=callbacks,
+                batch_size=batch_size,
+                verbose=verbose,
+            )
+        except ValidationError as e:
+            raise ValueError(f"Invalid inputs to fit method: {e}")
+        
+        self.epochs: int = params.epochs
+        self.val_split: float | None = params.val_split
+        self.batch_size: int = params.batch_size
+        self.verbose: bool = params.verbose
 
-        self.epochs = epochs
-        self.val_split = val_split
-        self.batch_size = batch_size
-        self.verbose = verbose
+    def _init_callbacks(self, callbacks: list[Callback]) -> None:
+        """
+        Initialize the callbacks.
 
-    # <-- Data Preparation -->
+        Args:
+            callbacks (list of objects): List of callback objects.
+        """
+        if len(callbacks) == 0:
+            return
+        for callback in callbacks:
+            callback.set_model(self)
+            callback.on_train_begin()
+
+        self.callbacks: list[Callback] = callbacks
+
     def _split_data(
-        self, X: pd.DataFrame, val_split: float, val_data: pd.DataFrame
-    ):
+        self, X: pd.DataFrame, val_data: pd.DataFrame, val_split: float
+    ) -> SplitData:
         """
         Split the data into training and validation sets.
 
@@ -510,96 +519,22 @@ class Sequential(Model):
         Returns:
             tuple: Tuple of training and validation data.
         """
-        if val_data is None:
-            X_train, val_data = train_test_split(X, test_size=val_split)
-        else:
-            X_train = X
+        if val_data.empty:
+            X, val_data = train_test_split(X, test_size=val_split)
 
+        # For Softmax output layer (multi-class classification)
         if self.model_output_units > 1:
-            X_train, y_train = self._one_hot_encoding(X_train)
-            X_val, y_val = self._one_hot_encoding(val_data)
-            self.logger.info(
-                f"Output Units: {self.model_output_units}: "
-                f"Using One-Hot Encoding"
-            )
+            X_train, y_train = one_hot_encoding(X)
+            X_val, y_val = one_hot_encoding(val_data)
+        # For Sigmoid output layer (binary classification)
         else:
-            X_train, y_train = self._label_encoding(X_train)
-            X_val, y_val = self._label_encoding(val_data)
-            self.logger.info(
-                f"Output Units: {self.model_output_units}: "
-                f"Using Label Encoding"
-            )
+            X_train, y_train = label_encoding(X)
+            X_val, y_val = label_encoding(val_data)
 
-        return X_train, y_train, X_val, y_val
+        return SplitData(
+            X_train=X_train, y_train=y_train, X_val=X_val, y_val=y_val
+        )
 
-    @staticmethod
-    def _shuffle_data(X_trn: np.ndarray, y_trn: np.ndarray):
-        """
-        Shuffle the training data and corresponding labels.
-
-        Args:
-            X_trn (np.ndarray): Training features data.
-            y_trn (np.ndarray): Training labels data.
-
-        Returns:
-            np.ndarray: Shuffled training features data.
-            np.ndarray: Shuffled training labels data.
-        """
-        # Shuffle X_trn and y_trn using the same random permutation
-        indices = np.random.permutation(len(X_trn))
-        return X_trn[indices], y_trn[indices]
-
-    # <-- Hot-Encode / Label Encoding -->
-    @staticmethod
-    def _one_hot_encoding(X: pd.DataFrame, num_classes: int = None) -> tuple:
-        """
-        Prepare the data for training.
-
-        Args:
-            X (DataFrame): Input features data.
-            num_classes (int): Number of classes in the dataset.
-
-        Returns:
-            np.ndarray: Numpy array of input features.
-        """
-        if "diagnosis" not in X.columns:
-            raise ValueError("The target column is missing.")
-
-        # Separate features and target
-        X_feature = X.drop(columns=["diagnosis"]).values
-        y_true = X["diagnosis"].values.astype(int)
-
-        # Get the number of samples (Rows)
-        n_samples = y_true.shape[0]
-
-        # Flatten y_true if necessary (1D array)
-        y_true = y_true.ravel()
-
-        # Determine the number of classes if not provided
-        if num_classes is None:
-            num_classes = np.max(y_true) + 1
-
-        # One-hot encode the labels
-        y_one_hot = np.zeros((n_samples, num_classes))
-        y_one_hot[np.arange(n_samples), y_true] = 1
-
-        return X_feature, y_one_hot
-
-    @staticmethod
-    def _label_encoding(data: pd.DataFrame) -> tuple:
-        """
-        Get the labels from the DataFrame.
-
-        Args:
-            data (DataFrame): Input features data.
-
-        Returns:
-            np.ndarray: Numpy array of labels.
-        """
-        X = data.drop(columns=["diagnosis"]).values
-        y = data["diagnosis"].values.astype(int)
-
-        return X, y
 
     # <-- Metrics and Logging -->
     def _update_metrics(
@@ -652,7 +587,7 @@ class Sequential(Model):
         Returns:
             int: Number of output units.
         """
-        return self._layers[-1].output_shape[1]
+        return self.layers[-1].output_shape[1]
 
     # <-- Dropout Inference Mode -->
     @property
@@ -682,7 +617,7 @@ class Sequential(Model):
             train_mode (bool): Whether to activate dropout (True)
                 or deactivate dropout (False).
         """
-        for layer in self._layers:
+        for layer in self.layers:
             if isinstance(layer, Dropout):
                 layer.train_mode = train_mode
 
@@ -692,7 +627,7 @@ class Sequential(Model):
         Print a summary of the model architecture.
         """
         summary = ""
-        for i, layer in enumerate(self._layers):
+        for i, layer in enumerate(self.layers):
             output_shape = layer.output_shape
             parameters = layer.count_parameters()
             summary += (
@@ -712,4 +647,4 @@ class Sequential(Model):
         Returns:
             int: Total number of parameters.
         """
-        return sum(layer.count_parameters() for layer in self._layers)
+        return sum(layer.count_parameters() for layer in self.layers)
