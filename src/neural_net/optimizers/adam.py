@@ -1,9 +1,8 @@
 import numpy as np
+from numpy.typing import NDArray
 
-from src.neural_net.optimizers.optimizer import Optimizer
 
-
-class AdamOptimizer(Optimizer):
+class AdamOptimizer:
     """
     It stands for Adaptive Moment Estimation (Adam) and combines the
     advantages of two other extensions of stochastic gradient descent:
@@ -38,20 +37,18 @@ class AdamOptimizer(Optimizer):
         compared to standard stochastic gradient descent (SGD)
         and helps in handling sparse gradients and noisy data.
     """
-
     def __init__(
-        self, beta1=0.9, beta2=0.999, epsilon=1e-8, learning_rate=0.001
-    ):
-        super().__init__()
-        self.beta1 = beta1
-        self.beta2 = beta2
-        self.epsilon = epsilon
-        self.learning_rate = learning_rate
-        self.iterations = 0
-        self.m_weights = None
-        self.v_weights = None
-        self.m_bias = None
-        self.v_bias = None
+        self,
+        beta1: float = 0.9,
+        beta2: float = 0.999,
+        epsilon: float = 1e-8,
+        learning_rate: float = 0.001,
+    ) -> None:
+        self.learning_rate: float = learning_rate
+        self.beta1: float = beta1
+        self.beta2: float = beta2
+        self.epsilon: float = epsilon
+        self.iterations: int = 0
 
     def initialize_moments(self, weights_shape: tuple, bias_shape: tuple):
         """
@@ -64,18 +61,18 @@ class AdamOptimizer(Optimizer):
         Returns:
             None
         """
-        self.m_weights = np.zeros(weights_shape)
-        self.v_weights = np.zeros(weights_shape)
-        self.m_bias = np.zeros(bias_shape)
-        self.v_bias = np.zeros(bias_shape)
+        self.m_weights: NDArray[np.float64] = np.zeros(weights_shape)
+        self.v_weights: NDArray[np.float64] = np.zeros(weights_shape)
+        self.m_bias: NDArray[np.float64] = np.zeros(bias_shape)
+        self.v_bias: NDArray[np.float64] = np.zeros(bias_shape)
 
     def update(
         self,
-        weights: np.ndarray,
-        bias: np.ndarray,
-        weights_gradients: np.ndarray,
-        bias_gradients: np.ndarray,
-    ):
+        weights: NDArray[np.float64],
+        bias: NDArray[np.float64],
+        weights_gradient: NDArray[np.float64],
+        bias_gradients: NDArray[np.float64],
+    ) -> tuple[NDArray[np.float64], NDArray[np.float64]]:
         """
         Update the weights and biases using the Adam optimization.
 
@@ -88,17 +85,17 @@ class AdamOptimizer(Optimizer):
         Returns:
             tuple: Updated weights and biases.
         """
-        if self.m_weights is None or self.v_weights is None:
+        if self.iterations == 0:
             self.initialize_moments(weights.shape, bias.shape)
 
         self.iterations += 1
 
         # Update weights moments
         self.m_weights = (
-            self.beta1 * self.m_weights + (1 - self.beta1) * weights_gradients
+            self.beta1 * self.m_weights + (1 - self.beta1) * weights_gradient
         )
         self.v_weights = self.beta2 * self.v_weights + (1 - self.beta2) * (
-            weights_gradients**2
+            weights_gradient**2
         )
         m_hat_weights = self.m_weights / (1 - self.beta1**self.iterations)
         v_hat_weights = self.v_weights / (1 - self.beta2**self.iterations)

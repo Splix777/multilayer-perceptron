@@ -1,3 +1,4 @@
+import sys
 import json
 import os
 import pickle
@@ -78,7 +79,7 @@ class MultiLayerPerceptron:
         # self.__plot_data(data=labeled_df, labels=labels)
 
         proccessed_data: ProcessedData = self.__preprocess_data(
-            data=labeled_df, labels=labels
+            data=labeled_df, labels=labels, drop_columns=[labels.id]
         )
 
         model_config: dict = json_to_dict(file_path=config_path)
@@ -231,9 +232,9 @@ class MultiLayerPerceptron:
                 model.add(Dropout(rate=layer.rate))
 
         model.compile(
+            loss=validated_config.loss,
             optimizer=validated_config.optimizer.type,
             learning_rate=validated_config.optimizer.learning_rate,
-            loss=validated_config.loss,
         )
 
         return model
@@ -256,7 +257,7 @@ class MultiLayerPerceptron:
         Returns:
             Sequential: Trained model.
         """
-        self.logger.info(model.summary())
+        self.logger.info(f"\n{model.summary()}")
         model.fit(
             X=proccessed_data.train_df,
             epochs=validated_config.epochs,
@@ -474,16 +475,21 @@ class MultiLayerPerceptron:
 
 
 if __name__ == "__main__":
-    # "data/csv/data_train.csv"
-    train_path: Path = Path(__file__).parent / "data/csv/data_training.csv"
-    # test_path: Path = Path(__file__).parent / "data/csv/data_test.csv"
-    # mpath: Path = Path(__file__).parent / "data/models/softmax_model.pkl"
-    conf_path: Path = Path(__file__).parent / "data/models/softmax_model.json"
-    # mpath = "data/models/sigmoid_model.pkl"
-    # conf_path = "data/models/sigmoid_model.json"
+    try:
+        # "data/csv/data_train.csv"
+        train_path: Path = Path(__file__).parent / "data/csv/data_training.csv"
+        # test_path: Path = Path(__file__).parent / "data/csv/data_test.csv"
+        # mpath: Path = Path(__file__).parent / "data/models/softmax_model.pkl"
+        conf_path: Path = Path(__file__).parent / "data/models/softmax_model.json"
+        # mpath = "data/models/sigmoid_model.pkl"
+        # conf_path = "data/models/sigmoid_model.json"
 
-    mlp = MultiLayerPerceptron()
-    mlp.train_model(dataset_path=train_path, config_path=conf_path)
-    # mlp.evaluate_model(model_path=mpath, data_path=dpath)
-    # print(mlp.predict(model_path=mpath, data_path=test_path))
-    # print(mlp.evaluate_model(model_path=mpath, data_path=test_path))
+        mlp = MultiLayerPerceptron()
+        mlp.train_model(dataset_path=train_path, config_path=conf_path)
+        # mlp.evaluate_model(model_path=mpath, data_path=dpath)
+        # print(mlp.predict(model_path=mpath, data_path=test_path))
+        # print(mlp.evaluate_model(model_path=mpath, data_path=test_path))
+    except Exception as e:
+        print(f"Error: {e}")
+        raise e
+        sys.exit(1)

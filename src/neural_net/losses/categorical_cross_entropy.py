@@ -1,41 +1,13 @@
 from .loss import Loss
 import numpy as np
+from numpy.typing import NDArray
 
 
 class CategoricalCrossEntropy(Loss):
-    """
-    Categorical Cross-Entropy losses function.
+    def __call__(self, y_true: NDArray[np.float64], y_pred: NDArray[np.float64]) -> float:
+        return self.call(y_true, y_pred)
 
-    Methods:
-        __call__(self, y_true: np.ndarray, y_pred: np.ndarray) -> float:
-            Compute the categorical cross-entropy losses given
-            true labels and predicted outputs.
-
-        gradient (self, y_true: np.ndarray, y_pred: np.ndarray) -> np.ndarray:
-            Compute the gradient of categorical cross-entropy losses
-            with respect to predicted outputs.
-
-        get_config(self) -> dict:
-            Get the configuration of the Categorical
-            Cross-Entropy losses function.
-    """
-
-    def __init__(self):
-        super().__init__()
-
-    def __call__(self, y_true: np.ndarray, y_pred: np.ndarray) -> float:
-        """
-        Compute the categorical cross-entropy losses.
-
-        Args:
-            y_true (np.ndarray): True labels (one-hot encoded) or target
-                values (integer indices).
-            y_pred (np.ndarray): Predicted output from
-                the model (probability distribution over classes).
-
-        Returns:
-            float: Categorical cross-entropy losses value.
-        """
+    def call(self, y_true: NDArray[np.float64], y_pred: NDArray[np.float64]) -> float:
         if len(y_true) != len(y_pred):
             raise ValueError("Lengths of y_true and y_pred must match.")
 
@@ -50,20 +22,7 @@ class CategoricalCrossEntropy(Loss):
         loss = -np.mean(y_true * np.log(y_pred))
         return float(loss)
 
-    def gradient(self, y_true: np.ndarray, y_pred: np.ndarray) -> np.ndarray:
-        """
-        Compute the gradient of categorical cross-entropy losses.
-
-        Args:
-            y_true (np.ndarray): True labels (one-hot encoded) or target
-                values (integer indices).
-            y_pred (np.ndarray): Predicted output from
-                the model (probability distribution over classes).
-
-        Returns:
-            np.ndarray: Gradient of categorical cross-entropy
-                losses with respect to y_pred.
-        """
+    def gradient(self, y_true: NDArray[np.float64], y_pred: NDArray[np.float64]) -> NDArray[np.float64]:
         if len(y_true) != len(y_pred):
             raise ValueError("Lengths of y_true and y_pred must match.")
 
@@ -79,12 +38,4 @@ class CategoricalCrossEntropy(Loss):
         return gradient / len(y_true)
 
     def get_config(self) -> dict:
-        """
-        Get the configuration of the Categorical
-        Cross-Entropy losses function.
-
-        Returns:
-            dict: Configuration of the Categorical
-                Cross-Entropy losses function.
-        """
         return {"name": self.__class__.__name__}

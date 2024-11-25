@@ -1,4 +1,5 @@
 import numpy as np
+from numpy.typing import NDArray
 
 from src.neural_net.regulizers.regulizer import Regularizer
 
@@ -24,7 +25,6 @@ class L2Regularizer(Regularizer):
         L2 regularization typically results in weights that
         are small but non-zero.
     """
-
     def __init__(self, lambda_param: float):
         """
         Initialize the L2 regularizer.
@@ -33,9 +33,9 @@ class L2Regularizer(Regularizer):
             lambda_param (float): Regularization parameter
                 controlling the strength of the penalty.
         """
-        self.lambda_param = lambda_param
+        self.lambda_param: float = lambda_param
 
-    def __call__(self, weights: np.ndarray) -> float:
+    def __call__(self, weights: NDArray[np.float64]) -> float:
         """
         Calculate the L2 regularization penalty.
 
@@ -45,9 +45,9 @@ class L2Regularizer(Regularizer):
         Returns:
             float: L2 regularization penalty.
         """
-        return 0.5 * self.lambda_param * np.sum(weights**2)
+        return float(0.5 * self.lambda_param * np.sum(weights**2))
 
-    def gradient(self, weights: np.ndarray) -> np.ndarray:
+    def gradient(self, weights: NDArray[np.float64]) -> NDArray[np.float64]:
         """
         Calculate the gradient of the L2 regularization penalty.
 

@@ -1,6 +1,8 @@
 import numpy as np
+from numpy.typing import NDArray
 
 from src.neural_net.callbacks.callback import Callback
+from src.neural_net.core.sequential import Sequential
 
 
 class EarlyStopping(Callback):
@@ -16,9 +18,9 @@ class EarlyStopping(Callback):
         self.best = np.inf
         self.wait = 0
         self.stopped_epoch = 0
-        self.best_epoch = None
-        self.best_weights = None
-        self.model = None
+        self.best_epoch = 0
+        self.best_weights: list[tuple[NDArray[np.float64], NDArray[np.float64]]]
+
 
     def set_model(self, model) -> None:
         """
@@ -30,7 +32,7 @@ class EarlyStopping(Callback):
         Returns:
             None
         """
-        self.model = model
+        self.model: Sequential = model
 
     def on_epoch_start(self, epoch: int, logs: dict = None) -> None:
         """
@@ -77,7 +79,7 @@ class EarlyStopping(Callback):
             self.wait += 1
             if self.wait >= self.patience:
                 self.stopped_epoch = epoch
-                self.model.stop_training = True
+                self.model.stop_condition = True
                 if self.verbose:
                     print(f"Early stopping at epoch {epoch + 1}")
 

@@ -1,4 +1,5 @@
 import numpy as np
+from numpy.typing import NDArray
 
 from src.neural_net.regulizers.regulizer import Regularizer
 
@@ -27,7 +28,6 @@ class L1Regularizer(Regularizer):
         can make optimization more challenging compared to L2
         regularization.
     """
-
     def __init__(self, lambda_param: float):
         """
         Initialize the L1 regularizer.
@@ -36,9 +36,9 @@ class L1Regularizer(Regularizer):
             lambda_param (float): Regularization parameter
                 controlling the strength of the penalty.
         """
-        self.lambda_param = lambda_param
+        self.lambda_param: float = lambda_param
 
-    def __call__(self, weights: np.ndarray) -> float:
+    def __call__(self, weights: NDArray[np.float64]) -> float:
         """
         Calculate the L1 regularization penalty.
 
@@ -50,7 +50,7 @@ class L1Regularizer(Regularizer):
         """
         return self.lambda_param * np.sum(np.abs(weights))
 
-    def gradient(self, weights: np.ndarray) -> np.ndarray:
+    def gradient(self, weights: NDArray[np.float64]) -> NDArray[np.float64]:
         """
         Calculate the gradient of the L1 regularization penalty.
 

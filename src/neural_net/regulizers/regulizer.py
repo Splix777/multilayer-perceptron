@@ -1,4 +1,5 @@
 import numpy as np
+from numpy.typing import NDArray
 
 from abc import ABC, abstractmethod
 
@@ -9,7 +10,7 @@ class Regularizer(ABC):
     """
 
     @abstractmethod
-    def __call__(self, weights: np.ndarray) -> float:
+    def __call__(self, weights: NDArray[np.float64]) -> float:
         """
         Calculate the regularization penalty.
 
@@ -22,7 +23,7 @@ class Regularizer(ABC):
         pass
 
     @abstractmethod
-    def gradient(self, weights: np.ndarray) -> np.ndarray:
+    def gradient(self, weights: NDArray[np.float64]) -> NDArray[np.float64]:
         """
         Calculate the gradient of the regularization penalty.
 

@@ -1,30 +1,19 @@
+from typing import Protocol, runtime_checkable
+
 import numpy as np
+from numpy.typing import NDArray
 
-from abc import ABC, abstractmethod
+@runtime_checkable
+class Optimizer(Protocol):
+    learning_rate: float
 
-
-class Optimizer(ABC):
-    def __init__(self, learning_rate=0.001, **kwargs):
-        """
-        Initialize the optimizers.
-
-        Args:
-            learning_rate (float, optional): Learning rate
-                for the optimizers. Default is 0.001.
-            **kwargs: Additional keyword arguments for
-                the optimizers initialization.
-        """
-        self.learning_rate = learning_rate
-        self._init_kwargs = kwargs
-
-    @abstractmethod
     def update(
         self,
-        weights: np.ndarray,
-        biases: np.ndarray,
-        weights_gradient: np.ndarray,
-        biases_gradient: np.ndarray,
-    ):
+        weights: NDArray[np.float64],
+        bias: NDArray[np.float64],
+        weights_gradient: NDArray[np.float64],
+        bias_gradients: NDArray[np.float64],
+    ) -> tuple[NDArray[np.float64], NDArray[np.float64]]:
         """
         Update the weights and biases of the model.
 
@@ -37,14 +26,7 @@ class Optimizer(ABC):
         Returns:
             tuple: Updated weights and biases.
         """
-        pass
+        ...
 
-    @abstractmethod
-    def get_config(self):
-        """
-        Get the configuration of the optimizers.
-
-        Returns:
-            dict: Configuration of the optimizers.
-        """
-        pass
+    def get_config(self) -> dict:
+        ...

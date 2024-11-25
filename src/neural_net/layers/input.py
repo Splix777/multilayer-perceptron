@@ -1,8 +1,13 @@
-from typing import Tuple
+from typing import Tuple, Optional
 import numpy as np
+from numpy.typing import NDArray
+
+from src.neural_net.optimizers.optimizer import Optimizer
+from src.neural_net.regulizers.regulizer import Regularizer
+
 
 class InputLayer:
-    def __init__(self, input_shape: tuple[int, ...], **kwargs):
+    def __init__(self, input_shape: tuple[int, ...], **kwargs) -> None:
         """
         Initialize the InputLayer with the given input shape.
 
@@ -15,8 +20,14 @@ class InputLayer:
         self.built = False
         self.input_shape: Tuple[int, ...] = input_shape
         self.output_shape: Tuple[int, ...] = input_shape
+        self.weights: NDArray[np.float64] = np.empty(0)
+        self.bias: NDArray[np.float64] = np.empty(0)
+        self.optimizer: Optional[Optimizer] = None
+        self.kernel_regularizer: Optional[str | Regularizer] = None
+        self.weight_gradients: NDArray[np.float64] = np.empty(0)
+        self.bias_gradients: NDArray[np.float64] = np.empty(0)
 
-    def __call__(self, inputs: np.ndarray) -> np.ndarray:
+    def __call__(self, inputs: NDArray[np.float64]) -> NDArray[np.float64]:
         """
         Perform the forward pass.
         For InputLayer, it simply returns the input tensor.
@@ -30,10 +41,7 @@ class InputLayer:
         Raises:
             ValueError: If the layer is not built.
         """
-        if not self.built:
-            raise ValueError("InputLayer not built. Call build() first.")
-
-        return inputs
+        return self.call(inputs)
 
     def build(self, input_shape: tuple[int, ...]) -> tuple[int, ...]:
         """
@@ -58,7 +66,7 @@ class InputLayer:
         self.built = True
         return self.output_shape
 
-    def call(self, inputs: np.ndarray) -> np.ndarray:
+    def call(self, inputs: NDArray[np.float64]) -> NDArray[np.float64]:
         """
         Perform the forward pass.
         For InputLayer, it simply returns the input tensor.
@@ -105,7 +113,7 @@ class InputLayer:
         """
         return 0
 
-    def get_weights(self) -> tuple[np.ndarray, np.ndarray]:
+    def get_weights(self) -> tuple[NDArray[np.float64], NDArray[np.float64]]:
         """
         Get the weights of the layer.
         InputLayer has no weight, so it returns an empty tuple.
@@ -113,9 +121,9 @@ class InputLayer:
         Returns:
             tuple: Empty tuple.
         """
-        return np.array([]), np.array([])
+        return self.weights, self.bias
 
-    def set_weights(self, weights: np.ndarray, bias: np.ndarray) -> None:
+    def set_weights(self, weights: NDArray[np.float64], bias: NDArray[np.float64]) -> None:
         """
         Set the weights and biases of the layer.
         InputLayer has no weight, so it does nothing.

@@ -1,5 +1,10 @@
+from typing import Optional
+
 import numpy as np
-from pydantic import Field
+from numpy.typing import NDArray
+
+from src.neural_net.optimizers.optimizer import Optimizer
+from src.neural_net.regulizers.regulizer import Regularizer
 
 
 class Dropout:
@@ -15,12 +20,20 @@ class Dropout:
         self.built = False
         self.input_shape: tuple[int, ...] = (0, 0)
         self.output_shape: tuple[int, ...] = (0, 0)
+        self.weights: NDArray[np.float64] = np.empty(0)
+        self.bias: NDArray[np.float64] = np.empty(0)
+        self.optimizer: Optional[Optimizer] = None
+        self.kernel_regularizer: Optional[str | Regularizer] = None
+        self.weight_gradients: NDArray[np.float64] = np.empty(0)
+        self.bias_gradients: NDArray[np.float64] = np.empty(0)
         # Specific attributes
-        self.rate: float = Field(rate, ge=0, lt=1)
         self.train_mode = True
-        self.mask = None
+        # Validate the dropout rate
+        if not (0 <= rate < 1):
+            raise ValueError("Dropout rate must be in the range [0, 1).")
+        self.rate: float = rate
 
-    def __call__(self, inputs: np.ndarray) -> np.ndarray:
+    def __call__(self, inputs: NDArray[np.float64]) -> NDArray[np.float64]:
         """
         Perform the forward pass.
 
@@ -45,7 +58,7 @@ class Dropout:
         self.output_shape: tuple[int, ...] = input_shape
         return self.output_shape
 
-    def call(self, inputs: np.ndarray) -> np.ndarray:
+    def call(self, inputs: NDArray[np.float64]) -> NDArray[np.float64]:
         """
         Perform the forward pass.
 
@@ -56,8 +69,9 @@ class Dropout:
             np.ndarray: Output tensor.
         """
         if self.train_mode:
-            self.mask = np.random.binomial(1, 1 - self.rate, size=inputs.shape)
+            self.mask: NDArray[np.long] = np.random.binomial(1, 1 - self.rate, size=inputs.shape)
             return inputs * self.mask / (1 - self.rate)
+
         return inputs
 
     def backward(self, loss_gradients: np.ndarray) -> np.ndarray:
@@ -86,16 +100,16 @@ class Dropout:
         """
         return 0
 
-    def get_weights(self) -> tuple[np.ndarray, np.ndarray]:
+    def get_weights(self) -> tuple[NDArray[np.float64], NDArray[np.float64]]:
         """
         Get the weights of the layer.
 
         Returns:
             tuple: Empty tuple.
         """
-        return np.array([]), np.array([])
+        return self.weights, self.bias
 
-    def set_weights(self, weights: np.ndarray, bias: np.ndarray) -> None:
+    def set_weights(self, weights: NDArray[np.float64], bias: NDArray[np.float64]) -> None:
         """
         Set the weights and biases of the layer.
 

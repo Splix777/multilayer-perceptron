@@ -1,9 +1,8 @@
 import numpy as np
+from numpy.typing import NDArray
 
-from src.neural_net.optimizers.optimizer import Optimizer
 
-
-class RMSpropOptimizer(Optimizer):
+class RMSpropOptimizer:
     """
     RMSpropOptimizer (Root Mean Square Propagation) is an optimization
     algorithm commonly used in training deep learning models.
@@ -43,13 +42,12 @@ class RMSpropOptimizer(Optimizer):
         objectives.
     """
 
-    def __init__(self, rho=0.9, epsilon=1e-8, learning_rate=0.001):
-        super().__init__()
-        self.rho = rho
-        self.epsilon = epsilon
-        self.learning_rate = learning_rate
-        self.accumulated_weights = None
-        self.accumulated_bias = None
+    def __init__(self, rho: float = 0.9, epsilon: float = 1e-8, learning_rate: float = 0.001):
+        self.learning_rate: float = learning_rate
+        self.rho: float = rho
+        self.epsilon: float = epsilon
+        self.learning_rate: float = learning_rate
+        self.accumulated_weights: NDArray[np.float64] = np.empty(0)
 
     def initialize_accumulators(self, weights_shape: tuple, bias_shape: tuple):
         """
@@ -63,16 +61,16 @@ class RMSpropOptimizer(Optimizer):
         Returns:
             None
         """
-        self.accumulated_weights = np.zeros(weights_shape)
-        self.accumulated_bias = np.zeros(bias_shape)
+        self.accumulated_weights: NDArray[np.float64] = np.zeros(weights_shape)
+        self.accumulated_bias: NDArray[np.float64] = np.zeros(bias_shape)
 
     def update(
         self,
-        weights: np.ndarray,
-        bias: np.ndarray,
-        weights_gradients: np.ndarray,
-        bias_gradients: np.ndarray,
-    ):
+        weights: NDArray[np.float64],
+        bias: NDArray[np.float64],
+        weights_gradient: NDArray[np.float64],
+        bias_gradients: NDArray[np.float64],
+    ) -> tuple[NDArray[np.float64], NDArray[np.float64]]:
         """
         Update the weights and biases using RMSprop optimization.
 
@@ -85,17 +83,17 @@ class RMSpropOptimizer(Optimizer):
         Returns:
             tuple: Updated weights and biases.
         """
-        if self.accumulated_weights is None:
+        if self.accumulated_weights.size == 0:
             self.initialize_accumulators(weights.shape, bias.shape)
 
         self.accumulated_weights = self.rho * self.accumulated_weights + (
             1 - self.rho
-        ) * (weights_gradients**2)
+        ) * (weights_gradient**2)
         self.accumulated_bias = self.rho * self.accumulated_bias + (
             1 - self.rho
         ) * (bias_gradients**2)
 
-        updated_weight = weights - self.learning_rate * weights_gradients / (
+        updated_weight = weights - self.learning_rate * weights_gradient / (
             np.sqrt(self.accumulated_weights) + self.epsilon
         )
         updated_bias = bias - self.learning_rate * bias_gradients / (

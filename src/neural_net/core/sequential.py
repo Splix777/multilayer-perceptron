@@ -1,7 +1,9 @@
-from typing import Generator
+from typing import Tuple, Optional
+from typing_extensions import LiteralString
+
 import numpy as np
-import pandas as pd
 from numpy.typing import NDArray
+import pandas as pd
 
 from sklearn.model_selection import train_test_split
 from pydantic import ValidationError
@@ -11,11 +13,12 @@ from src.schemas.split_data import SplitData
 
 from src.neural_net.core.model import Model
 from src.neural_net.layers.layer import Layer
-from src.neural_net.layers.dropout import Dropout
 from src.neural_net.layers.input import InputLayer
-from src.neural_net.optimizers.optimizer import Optimizer
+from src.neural_net.layers.dropout import Dropout
+from src.neural_net.layers.dense import Dense
 from src.neural_net.optimizers.adam import AdamOptimizer
 from src.neural_net.optimizers.rms_prop import RMSpropOptimizer
+from src.neural_net.regulizers.regulizer import Regularizer
 from src.neural_net.losses.loss import Loss
 from src.neural_net.losses.binary_cross_entropy import BinaryCrossEntropy
 from src.neural_net.losses.categorical_cross_entropy import (
@@ -28,18 +31,17 @@ from src.neural_net.utils.label_encoding import (
     one_hot_encoding,
     label_encoding,
 )
-from src.neural_net.utils.data_batch_utils import shuffle_data, iter_batches
+from src.neural_net.utils.data_batch_utils import iter_batches
 
 
 class Sequential(Model):
     def __init__(self) -> None:
         self.logger: Logger = Logger("Sequential")
-        self.losses = {"training": {}, "validation": {}}
-        self.accuracy = {"training": {}, "validation": {}}
+        self.losses: dict[str, dict[int, float]] = {"training": {}, "validation": {}}
+        self.accuracy: dict[str, dict[int, float]] = {"training": {}, "validation": {}}
 
         self.layers: list[Layer] = []
         self.callbacks: list[Callback] = []
-        self.loss: Loss = None
         self.built = False
         self.stop_condition = False
         self.dropout_active = True
@@ -76,7 +78,8 @@ class Sequential(Model):
         layer.build(layer.input_shape)
         self.layers.append(layer)
 
-        if len(self.layers) > 1:
+        # Validation: Ensure at least one trainable layer exists before building the model
+        if len(self.layers) > 1 and any(ly.trainable for ly in self.layers):
             self.built = True
 
     # <-- Compile Model -->
@@ -99,6 +102,10 @@ class Sequential(Model):
             raise ValueError(
                 "You must add layers to the model before compiling."
             )
+        if not isinstance(self.layers[-1], (Dense, Layer)):
+            raise ValueError(
+                "The last layer of the model must be a Dense layer."
+            )
 
         self.loss: Loss = (
             CategoricalCrossEntropy()
@@ -115,12 +122,12 @@ class Sequential(Model):
                 )
 
     # <-- Forward and Backward Pass -->
-    def call(self, inputs: np.ndarray | list) -> np.ndarray:
+    def call(self, inputs: NDArray[np.float64]) -> NDArray[np.float64]:
         """
         Perform the forward pass through all layers.
 
         Args:
-        inputs (Union[np.ndarray, list]): The input data
+        inputs (NDArray[np.float64]): The input data
             or features to propagate through the layers.
 
         Returns:
@@ -129,17 +136,19 @@ class Sequential(Model):
         Raises:
         TypeError: If inputs are not of type np.ndarray or list.
         """
-        if not isinstance(inputs, (np.ndarray, list)):
-            raise TypeError("Input data must be of type np.ndarray or list.")
+        if not isinstance(inputs, np.ndarray):
+            raise TypeError("Input data must be of type np.ndarray.")
 
         for layer in self.layers:
             inputs = layer.call(inputs)
             if layer.trainable and self.training_mode:
-                inputs = self._apply_regularization(layer, inputs)
+                if isinstance(layer.kernel_regularizer, Regularizer):
+                    regularization_penalty: float = layer.kernel_regularizer(layer.weights)
+                    inputs += regularization_penalty
 
         return inputs
 
-    def backward(self, loss_gradients: np.ndarray) -> None:
+    def backward(self, loss_gradients: NDArray[np.float64]):
         """
         Perform the backward pass through all layers.
 
@@ -158,7 +167,7 @@ class Sequential(Model):
         for layer in reversed(self.layers):
             loss_gradients = layer.backward(loss_gradients)
             if layer.trainable:
-                self._update_epoch_weights(layer)
+                self._update_epoch_weights(layer=layer)
 
     # <-- Training Methods -->
     def fit(
@@ -172,7 +181,7 @@ class Sequential(Model):
         val_split: float = 0.2,
         batch_size_mode: str = "fixed",
         min_batch_size: int = 16,
-        max_batch_size: int = 128,
+        max_batch_size: int = 256,
         batch_size_factor: float = 1.1,
     ) -> None:
         """
@@ -204,7 +213,7 @@ class Sequential(Model):
         Raises:
             ValueError: If input data types are incorrect.
         """
-        params: FitParams = self._prepare_fit(
+        data: SplitData = self._prepare_fit(
             X=X,
             epochs=epochs,
             val_split=val_split,
@@ -217,27 +226,24 @@ class Sequential(Model):
             max_batch_size=max_batch_size,
             batch_size_factor=batch_size_factor,
         )
-        split_data: SplitData = self._split_data(
-            params.X, params.val_data, params.val_split
-        )
 
-        previous_train_loss = None
+        previous_train_loss: Optional[float] = None
 
-        for epoch in range(params.epochs):
+        for epoch in range(epochs):
             if self.stop_condition:
                 break
 
-            train_loss = []
-            train_accuracy = []
+            train_loss: list[float] = []
+            train_accuracy: list[float] = []
 
-            for X_batch, y_batch in iter_batches(split_data.X_train, split_data.y_train, batch_size):
+            for X_batch, y_batch in iter_batches(data.X_train, data.y_train, batch_size):
                 loss_value, accuracy = self._train_batch(X_batch, y_batch)
                 train_loss.append(loss_value)
                 train_accuracy.append(accuracy)
 
-            val_loss, val_accuracy = self._eval_validation_data(X_val, y_val)
+            val_loss, val_accuracy = self._eval_validation_data(data.X_val, data.y_val)
 
-            log = self._update_metrics(
+            log: dict[str, float] = self._update_metrics(
                 train_loss, train_accuracy, val_loss, val_accuracy, epoch
             )
 
@@ -285,7 +291,7 @@ class Sequential(Model):
             ValueError: If an input data type is incorrect.
         """
         self._deactivate_train_mode()
-        X_eval, _ = self._one_hot_encoding(X)
+        X_eval, _ = one_hot_encoding(X)
         predictions = self.call(X_eval)
         self.dropout_active = True
         return predictions
@@ -302,9 +308,9 @@ class Sequential(Model):
         """
         self._deactivate_train_mode()
         if self.model_output_units > 1:
-            X_eval, y_eval = self._one_hot_encoding(X)
+            X_eval, y_eval = one_hot_encoding(X)
         else:
-            X_eval, y_eval = self._label_encoding(X)
+            X_eval, y_eval = label_encoding(X)
         predictions = self.call(X_eval)
         loss = self.loss(y_eval, predictions)
         if isinstance(self.loss, CategoricalCrossEntropy):
@@ -315,7 +321,11 @@ class Sequential(Model):
         return loss, accuracy
 
     # <-- Epoch Methods -->
-    def _train_batch(self, X_batch: np.ndarray, y_batch: np.ndarray):
+    def _train_batch(
+        self,
+        X_batch: NDArray[np.float64],
+        y_batch: NDArray[np.float64],
+    ) -> tuple[float, float]:
         """
         Train the model on a single batch of data.
 
@@ -323,17 +333,17 @@ class Sequential(Model):
             X_batch (np.ndarray): Input features data.
             y_batch (np.ndarray): Target labels data.
         """
-        output = self.call(X_batch)
+        output: NDArray[np.float64] = self.call(inputs=X_batch)
 
-        loss_value = self.loss(y_batch, output)
-        loss_gradients = self.loss.gradient(y_batch, output)
+        loss_value: float = self.loss(y_batch, output)
+        loss_gradients: NDArray[np.float64] = self.loss.gradient(y_true=y_batch, y_pred=output)
 
-        self.backward(loss_gradients)
+        self.backward(loss_gradients=loss_gradients)
 
         if isinstance(self.loss, CategoricalCrossEntropy):
-            accuracy = self._categorical_accuracy(y_batch, output)
+            accuracy: float = self._categorical_accuracy(y_batch, output)
         else:
-            accuracy = self._binary_accuracy(y_batch, output)
+            accuracy: float = self._binary_accuracy(y_batch, output)
 
         return loss_value, accuracy
 
@@ -345,63 +355,37 @@ class Sequential(Model):
         Args:
             layer (Layer): The layer to update the weights for.
         """
-        if layer.kernel_regularizer:
-            layer.weights_gradients += layer.kernel_regularizer.gradient(
-                layer.weights
+        if layer.kernel_regularizer and isinstance(layer.kernel_regularizer, Regularizer):
+            if isinstance(layer, Dense):
+                layer.weight_gradients += layer.kernel_regularizer.gradient(layer.weights)
+                layer.bias_gradients += layer.kernel_regularizer.gradient(layer.bias)
+
+        if layer.optimizer:
+            layer.weights, layer.bias = layer.optimizer.update(
+                weights=layer.weights,
+                bias=layer.bias,
+                weights_gradient=layer.weight_gradients,
+                bias_gradients=layer.bias_gradients,
             )
-            layer.bias_gradients += layer.kernel_regularizer.gradient(
-                layer.bias
-            )
-        layer.weights, layer.bias = layer.optimizer.update(
-            weights=layer.weights,
-            bias=layer.bias,
-            weights_gradients=layer.weights_gradients,
-            bias_gradients=layer.bias_gradients,
-        )
 
-    @staticmethod
-    def _apply_regularization(layer: Layer, inputs: np.ndarray) -> np.ndarray:
-        """
-        Apply regularization to the layer weights.
-
-        Args:
-            layer (Layer): The layer to apply regularization to.
-            inputs (np.ndarray): Input data or features.
-        """
-        if layer.kernel_regularizer:
-            regularization_penalty = layer.kernel_regularizer(layer.weights)
-            inputs += regularization_penalty
-
-        return inputs
-
-    def _deactivate_train_mode(self):
+    def _deactivate_train_mode(self) -> None:
         """
         Deactivate the training mode.
         """
         self.dropout_active = False
         self.training_mode = False
 
-    def _activate_train_mode(self):
+    def _activate_train_mode(self) -> None:
         """
         Activate the training mode.
         """
         self.dropout_active = True
         self.training_mode = True
 
-    def _eval_validation_data(self, X_val: np.ndarray, y_val: np.ndarray):
-        """
-        Test the model on the validation data.
-
-        Args:
-            X_val (np.ndarray): Validation input features data.
-            y_val (np.ndarray): Validation target labels data.
-
-        Returns:
-            Tuple[float, float]: Validation loss and accuracy.
-        """
+    def _eval_validation_data(self, X_val: NDArray[np.float64], y_val: NDArray[np.float64]) -> tuple[float, float]:
         self._deactivate_train_mode()
-        val_pred = self.call(X_val)
-        val_loss = self.loss(y_val, val_pred)
+        val_pred: NDArray[np.float64] = self.call(X_val)
+        val_loss: float = self.loss(y_val, val_pred)
 
         if self.loss == CategoricalCrossEntropy:
             val_accuracy = self._categorical_accuracy(y_val, val_pred)
@@ -411,47 +395,28 @@ class Sequential(Model):
         self._activate_train_mode()
         return val_loss, val_accuracy
 
-    def _binary_accuracy(self, y_true: np.ndarray, y_pred: np.ndarray):
-        """
-        Calculate the accuracy of the model.
-
-        Args:
-            y_true (np.ndarray): True labels.
-            y_pred (np.ndarray): Predicted labels.
-
-        Returns:
-            float: Accuracy of the model.
-        """
+    def _binary_accuracy(self, y_true: NDArray[np.float64],y_pred: NDArray[np.float64],) -> float:
         if self.model_output_units > 1:
             return np.mean((y_pred >= 0.5).astype(int) == y_true)
         return np.mean((y_pred >= 0.5).astype(int).flatten() == y_true)
 
     @staticmethod
-    def _categorical_accuracy(y_true: np.ndarray, y_pred: np.ndarray):
-        """
-        Calculate the accuracy of the model.
-
-        Args:
-            y_true (np.ndarray): True labels.
-            y_pred (np.ndarray): Predicted labels.
-
-        Returns:
-            float: Accuracy of the model.
-        """
+    def _categorical_accuracy(y_true: NDArray[np.float64], y_pred: NDArray[np.float64]) -> float:
+        if y_true.shape[0] != y_pred.shape[0]:
+            raise ValueError("Shape mismatch: y_true and y_pred must have the same number of samples.")
         true_classes = np.argmax(y_true, axis=1) if y_true.ndim > 1 else y_true
         pred_classes = np.argmax(y_pred, axis=1)
-        accuracy = np.mean(pred_classes == true_classes)
-        return float(accuracy)
+        return float(np.mean(pred_classes == true_classes))
 
     # <-- Getters and Setters -->
-    def get_weights(self):
+    def get_weights(self) -> list[tuple[NDArray[np.float64], NDArray[np.float64]]]:
         """
         Get the weights of the model.
 
         Returns:
             list: List of weights for each layer.
         """
-        return [layer.get_weights() for layer in self._layers]
+        return [layer.get_weights() for layer in self.layers]
 
     def set_weights(self, weights: list):
         """
@@ -477,46 +442,7 @@ class Sequential(Model):
         min_batch_size: int,
         max_batch_size: int,
         batch_size_factor: float,
-    ) -> FitParams:
-        params = FitParams(
-            X=X,
-            epochs=epochs,
-            val_split=val_split,
-            val_data=val_data,
-            callbacks=callbacks,
-            batch_size=batch_size,
-            verbose=verbose,
-            batch_size_mode=batch_size_mode,
-            min_batch_size=min_batch_size,
-            max_batch_size=max_batch_size,
-            batch_size_factor=batch_size_factor,
-        )
-        # Validation
-        self._validate_inputs(**params.model_dump())
-        # Callbacks initialization
-        self._init_callbacks(params.callbacks or [])
-        return params
-
-    def _validate_inputs(
-        self,
-        X: pd.DataFrame,
-        epochs: int,
-        val_split: float,
-        val_data: pd.DataFrame,
-        callbacks: list[Callback],
-        batch_size: int,
-        verbose: bool,
-        batch_size_mode: str,
-        min_batch_size: int,
-        max_batch_size: int,
-        batch_size_factor: float,
-    ) -> None:
-        """
-        Validate inputs for the fit method.
-
-        Raises:
-            ValueError: If input data types or values are incorrect.
-        """
+    ) -> SplitData:
         try:
             params = FitParams(
                 X=X,
@@ -534,10 +460,15 @@ class Sequential(Model):
         except ValidationError as e:
             raise ValueError(f"Invalid inputs to fit method: {e}")
 
-        self.epochs: int = params.epochs
-        self.val_split: float | None = params.val_split
-        self.batch_size: int = params.batch_size
-        self.verbose: bool = params.verbose
+        # Callbacks initialization
+        self._init_callbacks(params.callbacks or [])
+
+        # Encoder Data
+        data: SplitData = self._split_data(
+            params.X, params.val_data, params.val_split
+        )
+
+        return data
 
     def _init_callbacks(self, callbacks: list[Callback]) -> None:
         """
@@ -546,7 +477,7 @@ class Sequential(Model):
         Args:
             callbacks (list of objects): List of callback objects.
         """
-        if len(callbacks) == 0:
+        if not callbacks:
             return
         for callback in callbacks:
             callback.set_model(self)
@@ -593,7 +524,7 @@ class Sequential(Model):
         val_loss: float,
         val_accuracy: float,
         epoch: int,
-    ):
+    ) -> dict[str, float]:
         """
         Update the metrics for the model.
 
@@ -606,14 +537,14 @@ class Sequential(Model):
         Returns:
             dict: Dictionary of updated metrics.
         """
-        self.losses["training"][epoch] = np.mean(losses)
-        self.accuracy["training"][epoch] = np.mean(metrics)
+        self.losses["training"][epoch] = float(np.mean(losses))
+        self.accuracy["training"][epoch] = float(np.mean(metrics))
         self.losses["validation"][epoch] = val_loss
         self.accuracy["validation"][epoch] = val_accuracy
 
         return {
-            "loss": np.mean(losses),
-            "accuracy": np.mean(metrics),
+            "loss": float(np.mean(losses)),
+            "accuracy": float(np.mean(metrics)),
             "val_loss": val_loss,
             "val_accuracy": val_accuracy,
         }
@@ -673,21 +604,39 @@ class Sequential(Model):
     # <-- Summary and Layer Parameters -->
     def summary(self) -> str:
         """
-        Print a summary of the model architecture.
+        Generate a neatly formatted summary
+            of the model architecture.
+
+        Returns:
+            str: A formatted string summarizing the model
+                layers and total parameters.
         """
-        summary = ""
+        header: LiteralString = (
+            f"{'Layer':<10} | {'Name':<20} | {'Trainable':<10} "
+            f"| {'Output Shape':<20} | {'Parameters':<12}"
+        )
+        separator: LiteralString = "-" * len(header)
+
+        lines: list[str] = [
+            header,
+            separator,
+        ]
         for i, layer in enumerate(self.layers):
-            output_shape = layer.output_shape
-            parameters = layer.count_parameters()
-            summary += (
-                f"Layer {i + 1} {layer.__class__.__name__}: "
-                f"Trainable: {layer.trainable}, "
-                f"Output Shape: {output_shape}, "
-                f"Parameters: {parameters}\n"
+            output_shape: Tuple[int, ...] = layer.output_shape
+            parameters: int = layer.count_parameters()
+            lines.append(
+                f"{i + 1:<10} | {layer.__class__.__name__:<20} | "
+                f"{str(layer.trainable):<10} | {str(output_shape):<20} "
+                f"| {parameters:<12}"
             )
 
-        summary += f"Total Parameters: {self.count_parameters()}"
-        return summary
+        lines.append(separator)
+        lines.append(
+            f"{'Total':<10} | {'':<20} | {'':<10} | {'':<20} "
+            f"| {self.count_parameters():<12}"
+        )
+
+        return "\n".join(lines)
 
     def count_parameters(self) -> int:
         """

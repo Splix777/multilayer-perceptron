@@ -1,5 +1,7 @@
-import numpy as np
 from typing import Optional
+
+import numpy as np
+from numpy.typing import NDArray
 
 from src.neural_net.activations.leaky_relu import LeakyReLU
 from src.neural_net.activations.parametric_relu import ParametricReLU
@@ -22,7 +24,6 @@ class Dense:
         kernel_regularizer: Optional[str],
         kernel_initializer: str = "glorot_uniform",
         bias_initializer: str = "ones",
-        **kwargs,
     ) -> None:
         """
         Initialize a Dense layer with the given number
@@ -48,30 +49,20 @@ class Dense:
         self.built = False
         self.input_shape: tuple[int, ...] = (0,0)
         self.output_shape: tuple[int, ...] = (0,0)
-        # Specific Attributes
+        self.weights: NDArray[np.float64] = np.empty(0)
+        self.bias: NDArray[np.float64] = np.empty(0)
+        self.optimizer: Optional[Optimizer] = None
+        self.kernel_regularizer: Optional[str | Regularizer] = kernel_regularizer
+        self.weight_gradients: NDArray[np.float64] = np.empty(0)
+        self.bias_gradients: NDArray[np.float64] = np.empty(0)
+        # Dense Attributes
         self.logger = Logger("Dense")
         self.units: int = units
         self.kernel_initializer: str = kernel_initializer
         self.bias_initializer: str = bias_initializer
-        self.kernel_regularizer: Optional[str | Regularizer] = kernel_regularizer
-        self.optimizer: Optional[Optimizer] = None
-        self.weights: Optional[np.ndarray] = None
-        self.bias: Optional[np.ndarray]  = None
-        self.input = None
-        self.z = None
-        self.activation_output = None
-        self.bias_gradients: Optional[np.ndarray] = None
-        self.weights_gradients: Optional[np.ndarray] = None
-        self.activation_function = {
-            "relu": ReLU(),
-            "lrelu": LeakyReLU(),
-            "prelu": ParametricReLU(),
-            "tanh": Tanh(),
-            "sigmoid": Sigmoid(),
-            "softmax": Softmax(),
-        }.get(activation)
+        self._initialize_activation(activation)
 
-    def __call__(self, inputs: np.ndarray) -> np.ndarray:
+    def __call__(self, inputs: NDArray[np.float64]) -> NDArray[np.float64]:
         """
         Perform the forward pass through the Dense layer.
 
@@ -96,21 +87,22 @@ class Dense:
         Returns:
             tuple: Shape of the output tensor (batch_size, units).
         """
-        self.logger.info(f"Building Dense layer with input shape: {input_shape}")
         if not isinstance(input_shape, tuple) or not input_shape:
             raise ValueError("Input shape must be a non-empty tuple.")
         if any(dim <= 0 for dim in input_shape):
             raise ValueError("All dimensions must be positive integers.")
+
         self._initialize_weights(input_shape)
         self._initialize_bias()
         if self.kernel_regularizer:
             self._initialize_regularizer()
+            print(self.kernel_regularizer.__class__)
         self.output_shape = (input_shape[0], self.units)
         self.built = True
 
         return self.output_shape
 
-    def call(self, inputs: np.ndarray) -> np.ndarray:
+    def call(self, inputs: NDArray[np.float64]) -> NDArray[np.float64]:
         """
         Perform the forward pass through the Dense layer.
 
@@ -129,10 +121,10 @@ class Dense:
                 "inputs and weights are not compatible."
             )
 
-        self.z = np.dot(inputs, self.weights) + self.bias
+        self.z: NDArray[np.float64] = np.dot(inputs, self.weights) + self.bias
 
         if self.activation_function:
-            self.activation_output = self.activation_function(self.z)
+            self.activation_output: NDArray[np.float64] = self.activation_function(self.z)
 
         return self.activation_output
 
@@ -149,13 +141,13 @@ class Dense:
                 the input of the Dense layer.
         """
         if self.activation_function:
-            activation_gradients = self.activation_function.gradient(
+            activation_gradients: NDArray[np.float64] = self.activation_function.gradient(
                 x=self.activation_output
             )
 
             loss_gradients = loss_gradients * activation_gradients
 
-        if isinstance(self.activation_function, ParametricReLU):
+        if self.optimizer and isinstance(self.activation_function, ParametricReLU):
             self.activation_function.update_alpha(
                 loss_gradients=loss_gradients,
                 input_data=self.z,
@@ -175,9 +167,9 @@ class Dense:
             int: Total number of parameters (weights and biases)
                 in the layer.
         """
-        return np.prod(self.weights.shape) + np.prod(self.bias.shape)
+        return int(np.prod(self.weights.shape) + np.prod(self.bias.shape))
 
-    def get_weights(self) -> tuple[np.ndarray, np.ndarray]:
+    def get_weights(self) -> tuple[NDArray[np.float64], NDArray[np.float64]]:
         """
         Get the weights and biases of the Dense layer.
 
@@ -186,13 +178,13 @@ class Dense:
         """
         return self.weights, self.bias
 
-    def set_weights(self, weights: np.ndarray, bias: np.ndarray) -> None:
+    def set_weights(self, weights: NDArray[np.float64], bias: NDArray[np.float64]):
         """
         Set the weights and biases of the Dense layer.
 
         Args:
-            weights (np.ndarray): Weights of the layer.
-            bias (np.ndarray): Biases of the layer.
+            weights (NDArray[np.float64]): Weights of the layer.
+            bias (NDArray[np.float64]): Biases of the layer.
         """
         self.weights = weights
         self.bias = bias
@@ -234,6 +226,7 @@ class Dense:
             raise ValueError(
                 f"Unknown kernel initializer: " f"{self.kernel_initializer}"
             )
+        self.weight_gradients: NDArray[np.float64] = np.zeros_like(self.weights)
 
     def _initialize_bias(self) -> None:
         """
@@ -254,6 +247,7 @@ class Dense:
             raise ValueError(
                 f"Unknown bias initializer: " f"{self.bias_initializer}"
             )
+        self.bias_gradients: NDArray[np.float64] = np.zeros_like(self.bias)
 
     def _initialize_regularizer(self) -> None:
         """
@@ -270,6 +264,31 @@ class Dense:
             raise ValueError(
                 f"Unknown kernel regularizer: " f"{self.kernel_regularizer}"
             )
+
+    def _initialize_activation(self, activation: str) -> None:
+        """
+        Initialize the activation function of the Dense layer.
+
+        Args:
+            activation (str): Activation function to use.
+
+        Returns:
+            None
+        """
+        try:
+            self.activation_function = {
+                "relu": ReLU(),
+                "lrelu": LeakyReLU(),
+                "prelu": ParametricReLU(),
+                "tanh": Tanh(),
+                "sigmoid": Sigmoid(),
+                "softmax": Softmax(),
+            }.get(activation)
+        except KeyError:
+            raise ValueError(
+                f"Unknown activation function: " f"{activation}"
+            )
+
 
     @property
     def learning_rate(self) -> float:

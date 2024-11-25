@@ -18,7 +18,7 @@
     },
     {
       "type": "dense",
-      "units": 8,
+      "units": 16,
       "activation": "tanh",
       "kernel_initializer": "glorot_uniform",
       "kernel_regularizer" : "l2"
@@ -39,6 +39,6 @@
       "learning_rate": 0.001
   },
   "loss": "binary_crossentropy",
-  "batch_size": 512,
+  "batch_size": 32,
   "epochs": 100000
 }

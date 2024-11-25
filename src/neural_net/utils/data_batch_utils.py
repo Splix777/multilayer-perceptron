@@ -5,14 +5,14 @@ from numpy.typing import NDArray
 
 
 def shuffle_data(
-    x: NDArray[np.float64], y: NDArray[np.float64] | NDArray[np.intp]
-) -> tuple[NDArray[np.float64], NDArray[np.float64] | NDArray[np.intp]]:
+    x: NDArray[np.float64], y: NDArray[np.float64]
+) -> tuple[NDArray[np.float64], NDArray[np.float64]]:
     """
     Shuffle the input data.
 
     Args:
         x (NDArray[np.float64]): Features data.
-        y (NDArray[np.float64] | NDArray[np.intp]): Target data.
+        y (NDArray[np.float64]): Target data.
 
     Returns:
             tuple: Shuffled features and target data.
@@ -35,11 +35,11 @@ def shuffle_data(
 
 def iter_batches(
     X: NDArray[np.float64],
-    y: NDArray[np.float64] | NDArray[np.intp],
+    y: NDArray[np.float64],
     batch_size: int = 32,
     shuffle: bool = True,
 ) -> Generator[
-    tuple[NDArray[np.float64], NDArray[np.float64] | NDArray[np.intp]],  # Value yielded
+    tuple[NDArray[np.float64], NDArray[np.float64]],  # Value yielded
     None,  # Value that can be sent to the generator (you don't send anything here)
     None   # Return value of the generator when it finishes (THE MORE YOU KNOW!)
 ]:
@@ -62,3 +62,12 @@ def iter_batches(
         X_batch: NDArray[np.float64]  = X[i : i + batch_size]
         y_batch: NDArray[np.float64] | NDArray[np.intp] = y[i : i + batch_size]
         yield X_batch, y_batch
+
+
+if __name__ == "__main__":
+    X: NDArray[np.float64] = np.random.rand(100, 10)
+    y: NDArray[np.float64] = np.random.rand(100, 1)
+
+    for X_batch, y_batch in iter_batches(X, y, batch_size=32, shuffle=True):
+        print(X_batch.shape, y_batch.shape)
+        break

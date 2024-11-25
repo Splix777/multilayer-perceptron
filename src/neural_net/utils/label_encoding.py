@@ -55,14 +55,14 @@ def one_hot_encoding(
         )
 
     # One-hot encode the labels
-    y_one_hot: NDArray[np.float64] = np.eye(num_classes)[y_true]
+    y_one_hot: NDArray[np.float64] = np.eye(num_classes, dtype=np.float64)[y_true]
 
     return X_feature, y_one_hot
 
 
 def label_encoding(
     X: pd.DataFrame, target_column: str = "diagnosis",
-) -> Tuple[NDArray[np.float64], NDArray[np.intp]]:
+) -> Tuple[NDArray[np.float64], NDArray[np.float64]]:
     """
     Label encode the target column and prepare the data for training.
 
@@ -112,7 +112,10 @@ def label_encoding(
     # Label encode the labels (map each class to an integer)
     _, y_encoded = np.unique(y_true, return_inverse=True)
 
-    return X_feature, y_encoded
+    # Convert to float64
+    y_label: NDArray[np.float64] = y_encoded.astype(np.float64)
+
+    return X_feature, y_label
 
 
 if __name__ == "__main__":

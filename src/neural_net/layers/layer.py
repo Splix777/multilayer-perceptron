@@ -1,6 +1,10 @@
-from typing import Protocol, Tuple, runtime_checkable
-import numpy as np
+from typing import Protocol, Tuple, runtime_checkable, Optional
 
+import numpy as np
+from numpy.typing import NDArray
+
+from src.neural_net.optimizers.optimizer import Optimizer
+from src.neural_net.regulizers.regulizer import Regularizer
 
 @runtime_checkable
 class Layer(Protocol):
@@ -8,8 +12,15 @@ class Layer(Protocol):
     built: bool
     input_shape: Tuple[int, ...]
     output_shape: Tuple[int, ...]
+    weights: NDArray[np.float64]
+    bias: NDArray[np.float64]
+    optimizer: Optional[Optimizer] = None
+    kernel_regularizer: Optional[str | Regularizer] = None
+    weight_gradients: NDArray[np.float64] 
+    bias_gradients: NDArray[np.float64]
 
-    def __call__(self, inputs: np.ndarray) -> np.ndarray:
+
+    def __call__(self, inputs: NDArray[np.float64]) -> NDArray[np.float64]:
         """
         Perform the forward pass.
         """
@@ -21,7 +32,7 @@ class Layer(Protocol):
         """
         ...
 
-    def call(self, inputs: np.ndarray) -> np.ndarray:
+    def call(self, inputs: NDArray[np.float64]) -> NDArray[np.float64]:
         """
         Perform the forward pass.
         """
@@ -39,13 +50,13 @@ class Layer(Protocol):
         """
         ...
 
-    def get_weights(self) -> Tuple[np.ndarray, np.ndarray]:
+    def get_weights(self) -> Tuple[NDArray[np.float64], NDArray[np.float64]]:
         """
         Get the weights and biases of the layer.
         """
         ...
 
-    def set_weights(self, weights: np.ndarray, bias: np.ndarray) -> None:
+    def set_weights(self, weights: NDArray[np.float64], bias: NDArray[np.float64]) -> None:
         """
         Set the weights and biases of the layer.
         """

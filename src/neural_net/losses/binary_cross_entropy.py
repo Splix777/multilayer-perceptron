@@ -1,41 +1,13 @@
 from .loss import Loss
 import numpy as np
+from numpy.typing import NDArray
 
 
 class BinaryCrossEntropy(Loss):
-    """
-    Binary Cross-Entropy (Log Loss) losses function.
+    def __call__(self, y_true: NDArray[np.float64], y_pred: NDArray[np.float64]) -> float:
+        return self.call(y_true, y_pred)
 
-    Methods:
-        __call__(self, y_true: np.ndarray, y_pred: np.ndarray) -> float:
-            Compute the binary cross-entropy losses given
-            true labels and predicted outputs.
-
-        gradient (self, y_true: np.ndarray, y_pred: np.ndarray) -> np.ndarray:
-            Compute the gradient of binary cross-entropy losses
-            with respect to predicted outputs.
-
-        get_config(self) -> dict:
-            Get the configuration of the
-            Binary Cross-Entropy losses function.
-    """
-
-    def __init__(self):
-        super().__init__()
-
-    def __call__(self, y_true: np.ndarray, y_pred: np.ndarray) -> float:
-        """
-        Compute the binary cross-entropy losses.
-
-        Args:
-            y_true (np.ndarray): True labels or target
-                values (binary: 0 or 1).
-            y_pred (np.ndarray): Predicted output from
-                the model (probability between 0 and 1).
-
-        Returns:
-            float: Binary cross-entropy losses value.
-        """
+    def call(self, y_true: NDArray[np.float64], y_pred: NDArray[np.float64]) -> float:
         if y_true.shape != y_pred.shape:
             if y_true.shape[0] == y_pred.shape[0]:
                 y_true = y_true.reshape(-1, 1)
@@ -53,20 +25,7 @@ class BinaryCrossEntropy(Loss):
 
         return float(loss)
 
-    def gradient(self, y_true: np.ndarray, y_pred: np.ndarray) -> np.ndarray:
-        """
-        Compute the gradient of binary cross-entropy losses.
-
-        Args:
-            y_true (np.ndarray): True labels or target
-                values (binary: 0 or 1).
-            y_pred (np.ndarray): Predicted output
-                from the model (probability between 0 and 1).
-
-        Returns:
-            np.ndarray: Gradient of binary cross-entropy
-                losses with respect to y_pred.
-        """
+    def gradient(self, y_true: NDArray[np.float64], y_pred: NDArray[np.float64]) -> NDArray[np.float64]:
         if y_true.shape != y_pred.shape:
             if y_true.shape[0] == y_pred.shape[0]:
                 y_true = y_true.reshape(-1, 1)
@@ -80,10 +39,4 @@ class BinaryCrossEntropy(Loss):
         return (y_pred - y_true) / (y_pred * (1 - y_pred))
 
     def get_config(self) -> dict:
-        """
-        Get the configuration of the Binary Cross-Entropy losses function.
-
-        Returns:
-            dict: Configuration of the Binary Cross-Entropy losses function.
-        """
         return {"name": self.__class__.__name__}

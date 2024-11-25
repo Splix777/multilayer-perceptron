@@ -50,7 +50,7 @@ class Model(ABC):
         pass
 
     @abstractmethod
-    def summary(self) -> None:
+    def summary(self) -> str:
         """
         Print a summary of the model.
         """
