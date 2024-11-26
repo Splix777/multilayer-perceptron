@@ -7,7 +7,7 @@
     },
     {
       "type": "dense",
-      "units": 8,
+      "units": 16,
       "activation": "lrelu",
       "kernel_initializer": "he_normal",
       "kernel_regularizer" : "l2"
@@ -18,27 +18,27 @@
     },
     {
       "type": "dense",
-      "units": 16,
-      "activation": "tanh",
-      "kernel_initializer": "glorot_uniform",
+      "units": 32,
+      "activation": "lrelu",
+      "kernel_initializer": "he_normal",
       "kernel_regularizer" : "l2"
     },
     {
       "type": "dropout",
-      "rate": 0.3
+      "rate": 0.2
     },
     {
       "type": "dense",
-      "units": 2,
-      "activation": "softmax",
+      "units": 1,
+      "activation": "sigmoid",
       "kernel_initializer": "glorot_uniform"
     }
   ],
   "optimizer": {
-      "type": "adam",
+      "type": "rmsprop",
       "learning_rate": 0.001
   },
   "loss": "binary_crossentropy",
-  "batch_size": 32,
-  "epochs": 100000
+  "batch_size": 256,
+  "epochs": 500
 }

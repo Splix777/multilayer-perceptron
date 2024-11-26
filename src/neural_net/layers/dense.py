@@ -13,10 +13,11 @@ from src.neural_net.regulizers.l1_regulizer import L1Regularizer
 from src.neural_net.regulizers.l2_regulizer import L2Regularizer
 from src.neural_net.regulizers.regulizer import Regularizer
 from src.neural_net.optimizers.optimizer import Optimizer
+from src.neural_net.layers.layer import Layer
 from src.utils.logger import Logger
 
 
-class Dense:
+class Dense(Layer):
     def __init__(
         self,
         units: int,
@@ -53,8 +54,8 @@ class Dense:
         self.bias: NDArray[np.float64] = np.empty(0)
         self.optimizer: Optional[Optimizer] = None
         self.kernel_regularizer: Optional[str | Regularizer] = kernel_regularizer
-        self.weight_gradients: NDArray[np.float64] = np.empty(0)
-        self.bias_gradients: NDArray[np.float64] = np.empty(0)
+        self.weight_gradients: NDArray[np.float64]
+        self.bias_gradients: NDArray[np.float64]
         # Dense Attributes
         self.logger = Logger("Dense")
         self.units: int = units
@@ -154,7 +155,7 @@ class Dense:
                 learning_rate=self.optimizer.learning_rate,
             )
 
-        self.weights_gradients = np.dot(self.input.T, loss_gradients)
+        self.weight_gradients = np.dot(self.input.T, loss_gradients)
         self.bias_gradients = np.sum(loss_gradients, axis=0, keepdims=True)
 
         return np.dot(loss_gradients, self.weights.T)

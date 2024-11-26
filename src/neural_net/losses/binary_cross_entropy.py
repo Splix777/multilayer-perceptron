@@ -1,4 +1,5 @@
-from .loss import Loss
+from src.neural_net.losses.loss import Loss
+# from loss import Loss
 import numpy as np
 from numpy.typing import NDArray
 
@@ -40,3 +41,30 @@ class BinaryCrossEntropy(Loss):
 
     def get_config(self) -> dict:
         return {"name": self.__class__.__name__}
+
+
+if __name__ == "__main__":
+    # Initialize the loss class
+    bce_loss = BinaryCrossEntropy()
+
+    # Define small test inputs
+    y_true = np.array([1, 0, 1, 0], dtype=np.float64)
+    y_pred = np.array([0.9, 0.1, 0.8, 0.2], dtype=np.float64)
+
+    # Test loss calculation
+    computed_loss = bce_loss.call(y_true, y_pred)
+    epsilon = 1e-15
+    y_pred_clipped = np.clip(y_pred, epsilon, 1 - epsilon)
+    expected_loss = -np.mean(
+        y_true * np.log(y_pred_clipped) + (1 - y_true) * np.log(1 - y_pred_clipped)
+    )
+    print(f"Computed Loss: {computed_loss}")
+    print(f"Expected Loss: {expected_loss}")
+    assert np.isclose(computed_loss, expected_loss, atol=1e-6), "Loss calculation mismatch!"
+
+    # Test gradient calculation
+    computed_gradient = bce_loss.gradient(y_true, y_pred)
+    expected_gradient = (y_pred_clipped - y_true) / (y_pred_clipped * (1 - y_pred_clipped))
+    print(f"Computed Gradient: {computed_gradient}")
+    print(f"Expected Gradient: {expected_gradient}")
+    assert np.allclose(computed_gradient, expected_gradient, atol=1e-6), "Gradient calculation mismatch!"

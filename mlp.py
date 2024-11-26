@@ -265,7 +265,7 @@ class MultiLayerPerceptron:
             callbacks=[
                 EarlyStopping(
                     monitor="val_loss",
-                    patience=1000,
+                    patience=100,
                     verbose=True)
             ],
             batch_size=validated_config.batch_size,
@@ -477,12 +477,12 @@ class MultiLayerPerceptron:
 if __name__ == "__main__":
     try:
         # "data/csv/data_train.csv"
-        train_path: Path = Path(__file__).parent / "data/csv/data_training.csv"
+        train_path = Path(__file__).parent / "data/csv/data_training.csv"
         # test_path: Path = Path(__file__).parent / "data/csv/data_test.csv"
         # mpath: Path = Path(__file__).parent / "data/models/softmax_model.pkl"
         conf_path: Path = Path(__file__).parent / "data/models/softmax_model.json"
         # mpath = "data/models/sigmoid_model.pkl"
-        # conf_path = "data/models/sigmoid_model.json"
+        # conf_path = Path(__file__).parent /  "data/models/sigmoid_model.json"
 
         mlp = MultiLayerPerceptron()
         mlp.train_model(dataset_path=train_path, config_path=conf_path)
@@ -492,4 +492,3 @@ if __name__ == "__main__":
     except Exception as e:
         print(f"Error: {e}")
         raise e
-        sys.exit(1)

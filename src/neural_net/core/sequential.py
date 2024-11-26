@@ -167,7 +167,7 @@ class Sequential(Model):
         for layer in reversed(self.layers):
             loss_gradients = layer.backward(loss_gradients)
             if layer.trainable:
-                self._update_epoch_weights(layer=layer)
+                self._update_epoch_weights(layer)
 
     # <-- Training Methods -->
     def fit(
@@ -179,7 +179,7 @@ class Sequential(Model):
         batch_size: int = 32,
         verbose: bool = False,
         val_split: float = 0.2,
-        batch_size_mode: str = "fixed",
+        batch_size_mode: str = "auto",
         min_batch_size: int = 16,
         max_batch_size: int = 256,
         batch_size_factor: float = 1.1,
@@ -270,6 +270,7 @@ class Sequential(Model):
 
                 # Store the current epoch's loss for comparison in the next epoch
                 previous_train_loss = train_loss[-1]
+                print(f"Changing batch size to {batch_size}")
 
             for callback in callbacks:
                 callback.on_epoch_end(epoch, logs=log)
@@ -338,7 +339,7 @@ class Sequential(Model):
         loss_value: float = self.loss(y_batch, output)
         loss_gradients: NDArray[np.float64] = self.loss.gradient(y_true=y_batch, y_pred=output)
 
-        self.backward(loss_gradients=loss_gradients)
+        self.backward(loss_gradients)
 
         if isinstance(self.loss, CategoricalCrossEntropy):
             accuracy: float = self._categorical_accuracy(y_batch, output)
@@ -347,8 +348,8 @@ class Sequential(Model):
 
         return loss_value, accuracy
 
-    @staticmethod
-    def _update_epoch_weights(layer: Layer):
+    # @staticmethod
+    def _update_epoch_weights(self, layer: Layer):
         """
         Update the weights of the layer for the current epoch.
 
@@ -361,6 +362,8 @@ class Sequential(Model):
                 layer.bias_gradients += layer.kernel_regularizer.gradient(layer.bias)
 
         if layer.optimizer:
+            self.logger.log_to_file(f"Layer Weight Gradients {layer.weight_gradients}", "debug")
+            self.logger.log_to_file(f"Layer Bias Gradients {layer.bias_gradients}", "debug")
             layer.weights, layer.bias = layer.optimizer.update(
                 weights=layer.weights,
                 bias=layer.bias,
