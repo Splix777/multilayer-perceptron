@@ -1,11 +1,10 @@
+from typing import Optional
 import json
 import logging
 import coloredlogs
 
 from pathlib import Path
-# from src.utils.config import Config
-from config import Config
-from typing import Optional
+from src.utils.config import Config
 
 
 class Logger(logging.Logger):

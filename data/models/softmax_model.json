@@ -40,5 +40,5 @@
   },
   "loss": "binary_crossentropy",
   "batch_size": 256,
-  "epochs": 500
+  "epochs": 1000
 }

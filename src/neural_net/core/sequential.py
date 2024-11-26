@@ -28,6 +28,10 @@ from src.neural_net.utils.label_encoding import (
     one_hot_encoding,
     label_encoding,
 )
+from src.neural_net.utils.accuracy_metrics import (
+    binary_accuracy,
+    categorical_accuracy,
+)
 from src.neural_net.utils.data_batch_utils import iter_batches
 from src.utils.logger import Logger
 
@@ -174,7 +178,7 @@ class Sequential(Model):
             if layer.trainable:
                 self._update_epoch_weights(layer)
 
-    # <-- Training Methods -->
+    # <-- Training, Prediction, and Evaluation -->
     def fit(
         self,
         X: pd.DataFrame,
@@ -186,7 +190,7 @@ class Sequential(Model):
         val_split: float = 0.2,
         batch_size_mode: str = "auto",
         min_batch_size: int = 16,
-        max_batch_size: int = 256,
+        max_batch_size: int = 1024,
         batch_size_factor: float = 1.1,
     ) -> None:
         """
@@ -241,7 +245,9 @@ class Sequential(Model):
             train_loss: list[float] = []
             train_accuracy: list[float] = []
 
-            for X_batch, y_batch in iter_batches(data.X_train, data.y_train, batch_size):
+            for X_batch, y_batch in iter_batches(
+                data.X_train, data.y_train, batch_size
+            ):
                 loss_value, accuracy = self._train_batch(X_batch, y_batch)
                 train_loss.append(loss_value)
                 train_accuracy.append(accuracy)
@@ -253,15 +259,6 @@ class Sequential(Model):
             log: dict[str, float] = self._update_metrics(
                 train_loss, train_accuracy, val_loss, val_accuracy, epoch
             )
-
-            if verbose:
-                print(
-                    f"Epoch {epoch + 1}/{epochs}: "
-                    f"Accuracy: {log['accuracy']:.3f}, "
-                    f"Loss: {log['loss']:.3f} -- "
-                    f"Val Accuracy: {log['val_accuracy']:.3f}, "
-                    f"Val Loss: {log['val_loss']:.3f}"
-                )
 
             # Adjust batch size if necessary
             if batch_size_mode == "auto":
@@ -277,6 +274,16 @@ class Sequential(Model):
 
                 # Store the current epoch's loss for comparison in the next epoch
                 previous_train_loss = train_loss[-1]
+
+            if verbose:
+                print(
+                    f"Epoch {epoch + 1}/{epochs}: "
+                    f"Accuracy: {log['accuracy']:.3f}, "
+                    f"Loss: {log['loss']:.3f} -- "
+                    f"Val Accuracy: {log['val_accuracy']:.3f}, "
+                    f"Val Loss: {log['val_loss']:.3f} -- "
+                    f"Batch Size: {batch_size}"
+                )
 
             for callback in callbacks:
                 callback.on_epoch_end(epoch, logs=log)
@@ -321,17 +328,15 @@ class Sequential(Model):
         predictions = self.call(X_eval)
         loss = self.loss(y_eval, predictions)
         if isinstance(self.loss, CategoricalCrossEntropy):
-            accuracy = self._categorical_accuracy(y_eval, predictions)
+            accuracy = categorical_accuracy(y_eval, predictions)
         else:
-            accuracy = self._binary_accuracy(y_eval, predictions)
+            accuracy = binary_accuracy(y_eval, predictions)
         self.dropout_active = True
         return loss, accuracy
 
     # <-- Epoch Methods -->
     def _train_batch(
-        self,
-        X_batch: NDArray[np.float64],
-        y_batch: NDArray[np.float64],
+        self, X_batch: NDArray[np.float64], y_batch: NDArray[np.float64]
     ) -> tuple[float, float]:
         """
         Train the model on a single batch of data.
@@ -344,16 +349,15 @@ class Sequential(Model):
 
         loss_value: float = self.loss(y_batch, output)
         loss_gradients: NDArray[np.float64] = self.loss.gradient(
-            y_true=y_batch,
-            y_pred=output
+            y_true=y_batch, y_pred=output
         )
 
         self.backward(loss_gradients=loss_gradients)
 
         if isinstance(self.loss, CategoricalCrossEntropy):
-            accuracy: float = self._categorical_accuracy(y_batch, output)
+            accuracy: float = categorical_accuracy(y_batch, output)
         else:
-            accuracy: float = self._binary_accuracy(y_batch, output)
+            accuracy: float = binary_accuracy(y_batch, output)
 
         return loss_value, accuracy
 
@@ -406,33 +410,12 @@ class Sequential(Model):
         val_loss: float = self.loss(y_val, val_pred)
 
         if self.loss == CategoricalCrossEntropy:
-            val_accuracy = self._categorical_accuracy(y_val, val_pred)
+            val_accuracy = categorical_accuracy(y_val, val_pred)
         else:
-            val_accuracy = self._binary_accuracy(y_val, val_pred)
+            val_accuracy = binary_accuracy(y_val, val_pred)
 
         self._activate_train_mode()
         return val_loss, val_accuracy
-
-    def _binary_accuracy(
-        self,
-        y_true: NDArray[np.float64],
-        y_pred: NDArray[np.float64],
-    ) -> float:
-        if self.model_output_units > 1:
-            return np.mean((y_pred >= 0.5).astype(int) == y_true)
-        return np.mean((y_pred >= 0.5).astype(int).flatten() == y_true)
-
-    @staticmethod
-    def _categorical_accuracy(
-        y_true: NDArray[np.float64], y_pred: NDArray[np.float64]
-    ) -> float:
-        if y_true.shape[0] != y_pred.shape[0]:
-            raise ValueError(
-                "Shape mismatch: y_true and y_pred must have the same number of samples."
-            )
-        true_classes = np.argmax(y_true, axis=1) if y_true.ndim > 1 else y_true
-        pred_classes = np.argmax(y_pred, axis=1)
-        return float(np.mean(pred_classes == true_classes))
 
     # <-- Getters and Setters -->
     def get_weights(
@@ -597,38 +580,6 @@ class Sequential(Model):
         """
         return self.layers[-1].output_shape[1]
 
-    # <-- Dropout Inference Mode -->
-    # @property
-    # def dropout_active(self) -> bool:
-    #     """
-    #     Return the dropout active mode.
-    #     """
-    #     return self.dropout_active
-
-    # @dropout_active.setter
-    # def dropout_active(self, value: bool) -> None:
-    #     """
-    #     Set the dropout active mode.
-
-    #     Args:
-    #         value (bool): Whether to activate dropout (True)
-    #             or deactivate dropout (False).
-    #     """
-    #     self.dropout_active = value
-    #     self._set_dropout_inference_mode(train_mode=self.dropout_active)
-
-    # def _set_dropout_inference_mode(self, train_mode=True) -> None:
-    #     """
-    #     Set all Dropout layers to the specified mode.
-
-    #     Args:
-    #         train_mode (bool): Whether to activate dropout (True)
-    #             or deactivate dropout (False).
-    #     """
-    #     for layer in self.layers:
-    #         if isinstance(layer, Dropout):
-    #             layer.train_mode = train_mode
-
     # <-- Summary and Layer Parameters -->
     def summary(self) -> str:
         """
@@ -645,10 +596,7 @@ class Sequential(Model):
         )
         separator: LiteralString = "-" * len(header)
 
-        lines: list[str] = [
-            header,
-            separator,
-        ]
+        lines: list[str] = [header, separator]
         for i, layer in enumerate(self.layers):
             output_shape: Tuple[int, ...] = layer.output_shape
             parameters: int = layer.count_parameters()

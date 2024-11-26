@@ -75,7 +75,7 @@ class MultiLayerPerceptron:
         data: pd.DataFrame = csv_to_dataframe(file_path=dataset_path)
         labeled_df, labels = self._create_df_with_labels(data=data)
 
-        self._plot_data(data=labeled_df, labels=labels)
+        # self._plot_data(data=labeled_df, labels=labels)
 
         proccessed_data: ProcessedData = self._preprocess_data(
             data=labeled_df,
@@ -88,7 +88,6 @@ class MultiLayerPerceptron:
         model: Sequential = self._build_model(
             validated_config=validated_config
         )
-
         trained_model: Sequential = self._train_new_model(
             model=model,
             proccessed_data=proccessed_data,
@@ -265,7 +264,7 @@ class MultiLayerPerceptron:
             callbacks=[
                 EarlyStopping(
                     monitor="val_loss",
-                    patience=100,
+                    patience=200,
                     verbose=True)
             ],
             batch_size=validated_config.batch_size,
@@ -478,7 +477,7 @@ if __name__ == "__main__":
     try:
         # "data/csv/data_train.csv"
         train_path = Path(__file__).parent / "data/csv/data_training.csv"
-        # test_path: Path = Path(__file__).parent / "data/csv/data_test.csv"
+        test_path: Path = Path(__file__).parent / "data/csv/data_test.csv"
         # mpath: Path = Path(__file__).parent / "data/models/softmax_model.pkl"
         conf_path: Path = Path(__file__).parent / "data/models/softmax_model.json"
         # mpath = "data/models/sigmoid_model.pkl"
