@@ -3,13 +3,27 @@ import logging
 import coloredlogs
 
 from pathlib import Path
-from .config import Config
+# from src.utils.config import Config
+from config import Config
 from typing import Optional
 
 
 class Logger(logging.Logger):
-    def __init__(self, name=__name__, config: Config = Config(), **kwargs):
-        """Initializes the logger object."""
+    def __init__(
+        self, name=__name__, config: Config = Config(), **kwargs
+    ) -> None:
+        """
+        Initializes the logger object.
+
+        Args:
+            name (str): The name of the logger.
+            config (Config): The configuration object.
+            **kwargs: Additional keyword arguments.
+                color (str): The color
+
+        Returns:
+            None
+        """
         super().__init__(name)
         self.config: Config = config
         self.color: str = kwargs.get("color", "green")
@@ -55,14 +69,14 @@ class Logger(logging.Logger):
 
     def log_with_context(
         self, level: str, message: str, context: Optional[dict] = None
-    ):
+    ) -> None:
         """
         Logs a message with optional context information in JSON format.
 
         Args:
             level (str): The logging level (e.g., 'info', 'error', 'warning').
             message (str): The log message.
-            context (Optional[dict]): A dictionary of additional context to log.
+            context (Optional[dict]): Dictionary of additional context to log.
         """
         context_message = json.dumps(context, indent=4) if context else ""
         log_message = f"{message} | Context: {context_message}"
@@ -89,18 +103,28 @@ class Logger(logging.Logger):
             log_file_obj.write(f"{message}\n")
 
 
+# Singletons
+error_logger: Logger = Logger("error_logger", color="red")
+info_logger: Logger = Logger("info_logger", color="green")
+warning_logger: Logger = Logger("warning_logger", color="yellow")
+
+
 # Example usage
 if __name__ == "__main__":
-    logger: Logger = Logger("example_logger")
-    logger.info("This is an info message.")
-    logger.error("This is an error message.")
-    logger.warning("This is a warning message.")
+    error_logger: Logger = Logger("example_logger")
+    error_logger.info("This is an info message.")
+    error_logger.error("This is an error message.")
+    error_logger.warning("This is a warning message.")
 
-    logger.log_config()
+    error_logger.log_config()
 
     # Example of using log_with_context
     context_data: dict[str, str] = {"user": "john_doe", "action": "login"}
-    logger.log_with_context("info", "User performed an action", context_data)
+    error_logger.log_with_context(
+        "info", "User performed an action", context_data
+    )
 
     # Example of logging to a specific file
-    logger.log_to_file("This is a custom file log message.", "custom_log.txt")
+    error_logger.log_to_file(
+        "This is a custom file log message.", "custom_log.txt"
+    )

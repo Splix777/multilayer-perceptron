@@ -1,4 +1,3 @@
-import sys
 import json
 import os
 import pickle
@@ -13,7 +12,7 @@ from sklearn.preprocessing import StandardScaler
 
 from src.utils.config import Config
 from src.utils.logger import Logger
-from src.utils.decorators import error_handler, timeit
+from src.utils.decorators import timeit
 from src.utils.file_handlers import csv_to_dataframe, json_to_dict
 
 from src.schemas.csv_labels import CSVLabels
@@ -35,32 +34,32 @@ class MultiLayerPerceptron:
         Initialize the MultiLayerPerceptron object.
 
         Attributes:
+            logger (Logger): Logger object.
             config (Config): Configuration object.
             plotter (Plotter): Plotter object.
-            logger (Logger): Logger object.
             data_processor (DataPreprocessor): DataPreprocessor object.
 
         Returns:
             None
         """
+        self.logger: Logger = kwargs.get("logger", Logger("mlp"))
         self.config: Config = kwargs.get("config", Config())
         self.plotter: Plotter = kwargs.get(
             "plotter", Plotter(config=self.config)
         )
-        self.logger: Logger = kwargs.get("logger", Logger("mlp"))
         self.data_processor: DataPreprocessor = kwargs.get(
             "data_processor", DataPreprocessor()
         )
 
     @timeit
-    def train_model(self, dataset_path: Path, config_path: Path):
+    def train_model(self, dataset_path: Path, config_path: Path) -> None:
         """
         Train a new model using the given dataset
         and model configuration.
 
         Args:
-            dataset_path (str): Path to the dataset CSV file.
-            config_path (str): Path to the model
+            dataset_path (Path): Path to the dataset CSV file.
+            config_path (Path): Path to the model
                 configuration JSON file.
 
         Raises:
@@ -74,28 +73,29 @@ class MultiLayerPerceptron:
             str: Success message with the name of the trained model.
         """
         data: pd.DataFrame = csv_to_dataframe(file_path=dataset_path)
-        labeled_df, labels = self.__label_dataframe_cols(data=data)
+        labeled_df, labels = self._create_df_with_labels(data=data)
 
-        # self.__plot_data(data=labeled_df, labels=labels)
+        self._plot_data(data=labeled_df, labels=labels)
 
-        proccessed_data: ProcessedData = self.__preprocess_data(
-            data=labeled_df, labels=labels, drop_columns=[labels.id]
+        proccessed_data: ProcessedData = self._preprocess_data(
+            data=labeled_df,
+            labels=labels,
+            drop_columns=[labels.id]
         )
 
         model_config: dict = json_to_dict(file_path=config_path)
-        validated_config: SequentialModelConfig = SequentialModelConfig(
-            **model_config
-        )
-        model: Sequential = self.__build_model(
+        validated_config = SequentialModelConfig(**model_config)
+        model: Sequential = self._build_model(
             validated_config=validated_config
         )
 
-        trained_model: Sequential = self.__train_new_model(
+        trained_model: Sequential = self._train_new_model(
             model=model,
             proccessed_data=proccessed_data,
             validated_config=validated_config,
         )
-        # self._plot_model_history(model=trained_model, config=model_config)
+        # self._plot_model_history(model=trained_model, config=validated_config)
+
         # named_model: str = self.__save_model(
         #     model=trained_model,
         #     scaler=scaler,
@@ -105,9 +105,7 @@ class MultiLayerPerceptron:
 
         # return f"Successfully trained model: {named_model}"
 
-    def __label_dataframe_cols(
-        self, data: pd.DataFrame
-    ) -> tuple[pd.DataFrame, CSVLabels]:
+    def _create_df_with_labels(self, data: pd.DataFrame) -> tuple[pd.DataFrame, CSVLabels]:
         """
         Create a new CSV file with labeled columns.
 
@@ -139,12 +137,14 @@ class MultiLayerPerceptron:
         data.columns = col_names
 
         labels = CSVLabels(
-            id=patient_id, target=diagnosis, features=col_names[2:]
+            id=patient_id,
+            target=diagnosis,
+            features=col_names[2:]
         )
 
         return data, labels
 
-    def __plot_data(self, data: pd.DataFrame, labels: CSVLabels) -> None:
+    def _plot_data(self, data: pd.DataFrame, labels: CSVLabels) -> None:
         """
         Plot the data distribution, correlation heatmap,
         pairplot, and boxplots.
@@ -169,7 +169,7 @@ class MultiLayerPerceptron:
             columns=labels.features, hue=labels.target, data=data
         )
 
-    def __preprocess_data(
+    def _preprocess_data(
         self,
         data: pd.DataFrame,
         labels: CSVLabels,
@@ -201,7 +201,7 @@ class MultiLayerPerceptron:
             val_split=val_split,
         )
 
-    def __build_model(self, validated_config: SequentialModelConfig) -> Sequential:
+    def _build_model(self, validated_config: SequentialModelConfig) -> Sequential:
         """
         Build a new model using the given configuration.
 
@@ -239,7 +239,7 @@ class MultiLayerPerceptron:
 
         return model
 
-    def __train_new_model(
+    def _train_new_model(
         self,
         model: Sequential,
         proccessed_data: ProcessedData,
@@ -274,7 +274,7 @@ class MultiLayerPerceptron:
 
         return model
 
-    def _plot_model_history(self, model: Sequential, config: dict) -> None:
+    def _plot_model_history(self, model: Sequential, config: SequentialModelConfig) -> None:
         """
         Plot the model training history.
 
@@ -288,7 +288,7 @@ class MultiLayerPerceptron:
             None
         """
         history = model.history
-        model_name = config.get("model_name", "model")
+        model_name = config.name
         if history is None:
             raise ValueError("Model history is empty.")
 
@@ -394,8 +394,8 @@ class MultiLayerPerceptron:
         model, scaler, labels, model_config = self._load_model(
             model_path=model_path
         )
-        data = self.__label_dataframe_cols(data_path)
-        processed_data, _, _, _ = self.__preprocess_data(
+        data = self._create_df_with_labels(data_path)
+        processed_data, _, _, _ = self._preprocess_data(
             data=data,
             scaler=scaler,
             target="diagnosis",
@@ -425,8 +425,8 @@ class MultiLayerPerceptron:
         model, scaler, labels, model_config = self._load_model(
             model_path=model_path
         )
-        data = self.__label_dataframe_cols(data_path)
-        processed_data, _, _, _ = self.__preprocess_data(
+        data = self._create_df_with_labels(data_path)
+        processed_data, _, _, _ = self._preprocess_data(
             data=data,
             scaler=scaler,
             target="diagnosis",

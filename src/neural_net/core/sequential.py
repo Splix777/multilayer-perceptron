@@ -4,13 +4,12 @@ from typing_extensions import LiteralString
 import numpy as np
 from numpy.typing import NDArray
 import pandas as pd
+from pydantic import ValidationError
 
 from sklearn.model_selection import train_test_split
-from pydantic import ValidationError
 
 from src.schemas.fit_params import FitParams
 from src.schemas.split_data import SplitData
-
 from src.neural_net.core.model import Model
 from src.neural_net.layers.layer import Layer
 from src.neural_net.layers.input import InputLayer
@@ -25,21 +24,25 @@ from src.neural_net.losses.categorical_cross_entropy import (
     CategoricalCrossEntropy,
 )
 from src.neural_net.callbacks.callback import Callback
-
-from src.utils.logger import Logger
 from src.neural_net.utils.label_encoding import (
     one_hot_encoding,
     label_encoding,
 )
 from src.neural_net.utils.data_batch_utils import iter_batches
+from src.utils.logger import Logger
 
 
 class Sequential(Model):
     def __init__(self) -> None:
         self.logger: Logger = Logger("Sequential")
-        self.losses: dict[str, dict[int, float]] = {"training": {}, "validation": {}}
-        self.accuracy: dict[str, dict[int, float]] = {"training": {}, "validation": {}}
-
+        self.losses: dict[str, dict[int, float]] = {
+            "training": {},
+            "validation": {},
+        }
+        self.accuracy: dict[str, dict[int, float]] = {
+            "training": {},
+            "validation": {},
+        }
         self.layers: list[Layer] = []
         self.callbacks: list[Callback] = []
         self.built = False
@@ -143,7 +146,9 @@ class Sequential(Model):
             inputs = layer.call(inputs)
             if layer.trainable and self.training_mode:
                 if isinstance(layer.kernel_regularizer, Regularizer):
-                    regularization_penalty: float = layer.kernel_regularizer(layer.weights)
+                    regularization_penalty: float = layer.kernel_regularizer(
+                        layer.weights
+                    )
                     inputs += regularization_penalty
 
         return inputs
@@ -241,7 +246,9 @@ class Sequential(Model):
                 train_loss.append(loss_value)
                 train_accuracy.append(accuracy)
 
-            val_loss, val_accuracy = self._eval_validation_data(data.X_val, data.y_val)
+            val_loss, val_accuracy = self._eval_validation_data(
+                data.X_val, data.y_val
+            )
 
             log: dict[str, float] = self._update_metrics(
                 train_loss, train_accuracy, val_loss, val_accuracy, epoch
@@ -270,7 +277,6 @@ class Sequential(Model):
 
                 # Store the current epoch's loss for comparison in the next epoch
                 previous_train_loss = train_loss[-1]
-                print(f"Changing batch size to {batch_size}")
 
             for callback in callbacks:
                 callback.on_epoch_end(epoch, logs=log)
@@ -337,9 +343,12 @@ class Sequential(Model):
         output: NDArray[np.float64] = self.call(inputs=X_batch)
 
         loss_value: float = self.loss(y_batch, output)
-        loss_gradients: NDArray[np.float64] = self.loss.gradient(y_true=y_batch, y_pred=output)
+        loss_gradients: NDArray[np.float64] = self.loss.gradient(
+            y_true=y_batch,
+            y_pred=output
+        )
 
-        self.backward(loss_gradients)
+        self.backward(loss_gradients=loss_gradients)
 
         if isinstance(self.loss, CategoricalCrossEntropy):
             accuracy: float = self._categorical_accuracy(y_batch, output)
@@ -348,22 +357,25 @@ class Sequential(Model):
 
         return loss_value, accuracy
 
-    # @staticmethod
-    def _update_epoch_weights(self, layer: Layer):
+    def _update_epoch_weights(self, layer: Layer) -> None:
         """
         Update the weights of the layer for the current epoch.
 
         Args:
             layer (Layer): The layer to update the weights for.
         """
-        if layer.kernel_regularizer and isinstance(layer.kernel_regularizer, Regularizer):
+        if layer.kernel_regularizer and isinstance(
+            layer.kernel_regularizer, Regularizer
+        ):
             if isinstance(layer, Dense):
-                layer.weight_gradients += layer.kernel_regularizer.gradient(layer.weights)
-                layer.bias_gradients += layer.kernel_regularizer.gradient(layer.bias)
+                layer.weight_gradients += layer.kernel_regularizer.gradient(
+                    layer.weights
+                )
+                layer.bias_gradients += layer.kernel_regularizer.gradient(
+                    layer.bias
+                )
 
         if layer.optimizer:
-            self.logger.log_to_file(f"Layer Weight Gradients {layer.weight_gradients}", "debug")
-            self.logger.log_to_file(f"Layer Bias Gradients {layer.bias_gradients}", "debug")
             layer.weights, layer.bias = layer.optimizer.update(
                 weights=layer.weights,
                 bias=layer.bias,
@@ -371,6 +383,7 @@ class Sequential(Model):
                 bias_gradients=layer.bias_gradients,
             )
 
+    # <-- Training Mode -->
     def _deactivate_train_mode(self) -> None:
         """
         Deactivate the training mode.
@@ -385,7 +398,9 @@ class Sequential(Model):
         self.dropout_active = True
         self.training_mode = True
 
-    def _eval_validation_data(self, X_val: NDArray[np.float64], y_val: NDArray[np.float64]) -> tuple[float, float]:
+    def _eval_validation_data(
+        self, X_val: NDArray[np.float64], y_val: NDArray[np.float64]
+    ) -> tuple[float, float]:
         self._deactivate_train_mode()
         val_pred: NDArray[np.float64] = self.call(X_val)
         val_loss: float = self.loss(y_val, val_pred)
@@ -398,21 +413,31 @@ class Sequential(Model):
         self._activate_train_mode()
         return val_loss, val_accuracy
 
-    def _binary_accuracy(self, y_true: NDArray[np.float64],y_pred: NDArray[np.float64],) -> float:
+    def _binary_accuracy(
+        self,
+        y_true: NDArray[np.float64],
+        y_pred: NDArray[np.float64],
+    ) -> float:
         if self.model_output_units > 1:
             return np.mean((y_pred >= 0.5).astype(int) == y_true)
         return np.mean((y_pred >= 0.5).astype(int).flatten() == y_true)
 
     @staticmethod
-    def _categorical_accuracy(y_true: NDArray[np.float64], y_pred: NDArray[np.float64]) -> float:
+    def _categorical_accuracy(
+        y_true: NDArray[np.float64], y_pred: NDArray[np.float64]
+    ) -> float:
         if y_true.shape[0] != y_pred.shape[0]:
-            raise ValueError("Shape mismatch: y_true and y_pred must have the same number of samples.")
+            raise ValueError(
+                "Shape mismatch: y_true and y_pred must have the same number of samples."
+            )
         true_classes = np.argmax(y_true, axis=1) if y_true.ndim > 1 else y_true
         pred_classes = np.argmax(y_pred, axis=1)
         return float(np.mean(pred_classes == true_classes))
 
     # <-- Getters and Setters -->
-    def get_weights(self) -> list[tuple[NDArray[np.float64], NDArray[np.float64]]]:
+    def get_weights(
+        self,
+    ) -> list[tuple[NDArray[np.float64], NDArray[np.float64]]]:
         """
         Get the weights of the model.
 
@@ -546,8 +571,8 @@ class Sequential(Model):
         self.accuracy["validation"][epoch] = val_accuracy
 
         return {
-            "loss": float(np.mean(losses)),
-            "accuracy": float(np.mean(metrics)),
+            "loss": self.losses["training"][epoch],
+            "accuracy": self.accuracy["training"][epoch],
             "val_loss": val_loss,
             "val_accuracy": val_accuracy,
         }
@@ -573,36 +598,36 @@ class Sequential(Model):
         return self.layers[-1].output_shape[1]
 
     # <-- Dropout Inference Mode -->
-    @property
-    def dropout_active(self):
-        """
-        Return the dropout active mode.
-        """
-        return self._dropout_active
+    # @property
+    # def dropout_active(self) -> bool:
+    #     """
+    #     Return the dropout active mode.
+    #     """
+    #     return self.dropout_active
 
-    @dropout_active.setter
-    def dropout_active(self, value):
-        """
-        Set the dropout active mode.
+    # @dropout_active.setter
+    # def dropout_active(self, value: bool) -> None:
+    #     """
+    #     Set the dropout active mode.
 
-        Args:
-            value (bool): Whether to activate dropout (True)
-                or deactivate dropout (False).
-        """
-        self._dropout_active = bool(value)
-        self._set_dropout_inference_mode(train_mode=self._dropout_active)
+    #     Args:
+    #         value (bool): Whether to activate dropout (True)
+    #             or deactivate dropout (False).
+    #     """
+    #     self.dropout_active = value
+    #     self._set_dropout_inference_mode(train_mode=self.dropout_active)
 
-    def _set_dropout_inference_mode(self, train_mode=True):
-        """
-        Set all Dropout layers to the specified mode.
+    # def _set_dropout_inference_mode(self, train_mode=True) -> None:
+    #     """
+    #     Set all Dropout layers to the specified mode.
 
-        Args:
-            train_mode (bool): Whether to activate dropout (True)
-                or deactivate dropout (False).
-        """
-        for layer in self.layers:
-            if isinstance(layer, Dropout):
-                layer.train_mode = train_mode
+    #     Args:
+    #         train_mode (bool): Whether to activate dropout (True)
+    #             or deactivate dropout (False).
+    #     """
+    #     for layer in self.layers:
+    #         if isinstance(layer, Dropout):
+    #             layer.train_mode = train_mode
 
     # <-- Summary and Layer Parameters -->
     def summary(self) -> str:
