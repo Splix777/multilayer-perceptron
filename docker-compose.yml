@@ -4,7 +4,24 @@ services:
     build:
       context: .
       dockerfile: Dockerfile
+    container_name: multilayer_perceptron
     stdin_open: true
     tty: true
+    networks:
+      - default
 
-# docker-compose run multilayer_perceptron /bin/bash
+  ollama:
+    image: ollama/ollama
+    container_name: ollama
+    ports:
+      - "11434:11434"
+    volumes:
+      - ollama:/root/.ollama
+    networks:
+      - default
+
+volumes:
+  ollama:
+
+networks:
+  default:

@@ -5,30 +5,44 @@ PIP := $(VENV_NAME)/bin/pip
 REQUIREMENTS := requirements.txt
 LOGS := logs
 
-.PHONY: all setup start stop clean
+.PHONY: all setup docker-setup start docker-start docker-clean docker stop clean
 
 # Default target
-all: setup start
+all: docker
 
-# Setup virtual environment and install requirements
+# Dockerized setup and start combined
+docker: docker-setup docker-start
+
+# Dockerized setup
+docker-setup:
+	docker compose build
+
+# Start the application in Docker
+docker-start:
+	docker compose run multilayer_perceptron /bin/bash
+
+# Clean up Docker (removes all images, volumes, networks, containers)
+docker-clean:
+	@echo "Pruning all Docker resources..."
+	docker system prune -a --volumes -f
+
+# Setup virtual environment and install requirements locally
 setup: $(VENV_NAME)
 	$(PIP) install -r $(REQUIREMENTS)
 
-# Create virtual environment
+# Create virtual environment locally
 $(VENV_NAME):
 	python3 -m venv $(VENV_NAME)
 
-# Start the application
+# Start the application locally
 start:
 	$(PYTHON) cli.py
 
-# Stop the application
+# Stop the application (placeholder for future use)
 stop:
-	pass
+	@echo "Stop command not implemented."
 
 # Clean up
 clean:
 	rm -rf $(VENV_NAME)
 	rm -rf $(LOGS)
-
-

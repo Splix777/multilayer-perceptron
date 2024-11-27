@@ -5,6 +5,7 @@ from rich.console import Console
 from rich.prompt import Prompt
 from rich.table import Table
 from pathlib import Path
+import ollama
 
 from mlp import MultiLayerPerceptron
 from src.utils.config import Config
@@ -88,6 +89,20 @@ def evaluate_model() -> None:
         f"{acc * 100:.2f}% Accuracy\n"
         f"{loss:.4f} Loss"
     )
+
+@app.command("rag")
+def ask_ollama() -> None:
+    console.print("[green]Ollama is the best![/green]")
+
+    while True:
+        question: str = Prompt.ask("[blue]Ask Ollama a question[/blue]")
+        if question.lower() == "exit":
+            break
+        # TODO: Implement full RAG functionality (currently only stock responses)
+        response = ollama.generate(model="llama3", prompt=question)
+        print(response['response'])
+
+
 
 
 def configure_new_model() -> str:
