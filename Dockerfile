@@ -1,5 +1,5 @@
 # Use the official Python image from the Docker Hub
-FROM python:3.10-slim
+FROM python:3.12-slim
 
 # Set the working directory in the container
 WORKDIR /app
@@ -13,3 +13,5 @@ RUN pip install --no-cache-dir -r requirements.txt
 # Copy the entire project directory into the container
 COPY . .
 
+# Launch into bash shell
+CMD ["/bin/bash"]

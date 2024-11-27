@@ -3,8 +3,8 @@ services:
     image: multilayer_perceptron
     build:
       context: .
-    volumes:
-      - type: bind
-        source: .
-        target: /app/
-    command: ["/bin/bash"]
+      dockerfile: Dockerfile
+    stdin_open: true
+    tty: true
+
+# docker-compose run multilayer_perceptron /bin/bash
