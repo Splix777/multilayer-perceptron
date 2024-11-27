@@ -359,8 +359,7 @@ The training process continues for a specified number of epochs, updating the we
 <summary><strong>Click to reveal sample training results</strong></summary>
 
 <div align="center">
-<img src="images/softmax_model_accuracy.png" alt="Training Results" width="100%">
-<img src="images/softmax_model_loss.png" alt="Training Results" width="100%">
+<img src="images/softmax_model_history.png" alt="Training Results" width="100%">
 </div>
 
 </details>
