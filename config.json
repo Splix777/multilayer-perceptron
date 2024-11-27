@@ -11,19 +11,20 @@
   "paths": {
     "output_directory": "data",
     "source_directory": "src",
+    "docs_directory": "docs",
     "logs_directory": "logs",
-    "temp_directory": ".temp",
+    "temp_directory": "temp",
     "csv_directory": "data/csv",
-    "model_directory": "data/models",
+    "trained_models_directory": "data/models",
     "plot_directory": "data/plots"
   },
   "wdbc_labels": {
     "id": "id",
     "diagnosis": "diagnosis",
-        "radius_types": [
-        "mean",
-        "se",
-        "worst"
+    "radius_types": [
+    "mean",
+    "se",
+    "worst"
     ],
     "base_features": [
         "radius",
