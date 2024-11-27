@@ -10,7 +10,7 @@ from matplotlib.axes import Axes
 import seaborn as sns
 
 from src.utils.config import Config
-from src.utils.logger import Logger
+from src.utils.logger import error_logger
 
 
 class Plotter:
@@ -55,7 +55,6 @@ class Plotter:
             None
         """
         self.config: Config = kwargs.get("config", Config())
-        self.logger: Logger = kwargs.get("logger", Logger("plotter"))
         self.save_dir: Path = kwargs.get("save_dir", self.config.plot_dir)
 
     def __fig_generator(
@@ -78,7 +77,7 @@ class Plotter:
             try:
                 yield fig, ax
             except Exception as e:
-                self.logger.info(f"Error generating Figure and Axes: {e}")
+                error_logger.error(f"Error generating Figure and Axes: {e}")
             finally:
                 plt.close(fig)
 
@@ -102,14 +101,14 @@ class Plotter:
                 save_path.parent.mkdir(parents=True, exist_ok=True)
 
             except Exception as e:
-                self.logger.info(f"Error ensuring save directory exists: {e}")
+                error_logger.error(f"Error ensuring save directory exists: {e}")
                 plt.close(fig)
                 return
 
             try:
                 fig.savefig(save_path)
             except Exception as e:
-                self.logger.info(f"Error saving figure: {e}")
+                error_logger.error(f"Error saving figure: {e}")
             finally:
                 plt.close(fig)
 
@@ -117,7 +116,7 @@ class Plotter:
             try:
                 plt.show()
             except Exception as e:
-                self.logger.info(f"Error displaying figure: {e}")
+                error_logger.error(f"Error displaying figure: {e}")
             finally:
                 plt.close(fig)
 
@@ -159,7 +158,7 @@ class Plotter:
         try:
             corr_matrix: pd.DataFrame = data[columns].corr()
         except Exception as e:
-            self.logger.info(f"Error generating correlation matrix: {e}")
+            error_logger.error(f"Error generating correlation matrix: {e}")
             return
 
         fig, ax = next(self.__fig_generator(figsize=(16, 18)))

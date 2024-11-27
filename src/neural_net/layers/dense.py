@@ -14,7 +14,6 @@ from src.neural_net.regulizers.l2_regulizer import L2Regularizer
 from src.neural_net.regulizers.regulizer import Regularizer
 from src.neural_net.optimizers.optimizer import Optimizer
 from src.neural_net.layers.layer import Layer
-from src.utils.logger import Logger
 
 
 class Dense(Layer):
@@ -57,7 +56,6 @@ class Dense(Layer):
         self.weight_gradients: NDArray[np.float64]
         self.bias_gradients: NDArray[np.float64]
         # Dense Attributes
-        self.logger = Logger("Dense")
         self.units: int = units
         self.kernel_initializer: str = kernel_initializer
         self.bias_initializer: str = bias_initializer

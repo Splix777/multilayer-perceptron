@@ -74,6 +74,27 @@ def open_file(
         raise OSError(f"Error opening file {file_path} in mode {mode}: {e}")
 
 
+def save_json_to_file(data: dict, file_path: Path, **kwargs: Any) -> None:
+    """
+    Save a dictionary to a JSON file.
+
+    Args:
+        data (dict): Dictionary to save to the JSON file.
+        file_path (Path): Path to the JSON file.
+        **kwargs (Any): Additional keyword arguments
+            to pass to json.dump.
+
+    Raises:
+        ValueError: If saving the JSON file fails.
+    """
+    try:
+        with open(file_path, "w") as json_file:
+            json.dump(data, json_file, **kwargs)
+    except Exception as e:
+        error_logger.error(f"Error saving JSON to file: {e}")
+        raise ValueError(f"Error saving JSON to file {file_path}: {e}")
+
+
 def csv_to_dataframe(file_path: Path, **kwargs: Any) -> pd.DataFrame:
     """
     Read a CSV file into a pandas DataFrame.

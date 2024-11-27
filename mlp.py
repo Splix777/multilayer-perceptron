@@ -1,8 +1,3 @@
-import json
-import os
-import pickle
-
-from typing import List
 from pathlib import Path
 
 import numpy as np
@@ -11,21 +6,27 @@ import pandas as pd
 from sklearn.preprocessing import StandardScaler
 
 from src.utils.config import Config
-from src.utils.logger import Logger
-from src.utils.decorators import timeit
-from src.utils.file_handlers import csv_to_dataframe, json_to_dict
+from src.utils.file_handlers import (
+    csv_to_dataframe,
+    json_to_dict,
+    pickle_to_file,
+    file_to_pickle,
+)
 
-from src.schemas.csv_labels import CSVLabels
+from src.schemas.csv_labels import CSVColNames
 from src.schemas.processed_data import ProcessedData
+from src.schemas.sequential_config import SequentialModelConfig
+from src.schemas.packaged_model import PackagedModel
 
 from src.dataset_handler.data_preprocessing import DataPreprocessor
-from src.neural_net.callbacks.early_stopping import EarlyStopping
 from src.data_plotter.plotter import Plotter
+
 from src.neural_net.core.sequential import Sequential
-from src.schemas.sequential_config import SequentialModelConfig
 from src.neural_net.layers.input import InputLayer
 from src.neural_net.layers.dense import Dense
 from src.neural_net.layers.dropout import Dropout
+from src.neural_net.callbacks.early_stopping import EarlyStopping
+from src.neural_net.history.model_history import History
 
 
 class MultiLayerPerceptron:
@@ -42,7 +43,6 @@ class MultiLayerPerceptron:
         Returns:
             None
         """
-        self.logger: Logger = kwargs.get("logger", Logger("mlp"))
         self.config: Config = kwargs.get("config", Config())
         self.plotter: Plotter = kwargs.get(
             "plotter", Plotter(config=self.config)
@@ -51,8 +51,68 @@ class MultiLayerPerceptron:
             "data_processor", DataPreprocessor()
         )
 
-    @timeit
-    def train_model(self, dataset_path: Path, config_path: Path) -> None:
+    def evaluate_model(
+        self, model_path: Path, data_path: Path
+    ) -> tuple[float, float]:
+        """
+        Evaluate a trained model using the given data.
+
+        Args:
+            model_path (str): Path to the trained model pickle file.
+            data_path (str): Path to the data CSV file.
+
+        Returns:
+            str: Evaluation results.
+        """
+        model_package: PackagedModel = file_to_pickle(file_path=model_path)
+
+        data: pd.DataFrame = csv_to_dataframe(file_path=data_path)
+        labeled_df, _ = self._create_df_with_labels(data=data)
+        processed_data: ProcessedData = self._preprocess_data(
+            data=labeled_df,
+            scaler=model_package.scaler,
+            df_col_names=model_package.df_col_names,
+            drop_columns=[model_package.df_col_names.id],
+            val_split=0.0,
+        )
+
+        loss, acc = model_package.model.evaluate(X=processed_data.train_df)
+
+        return loss, acc
+
+    def predict(self, model_path: Path, data_path: Path) -> list[str]:
+        """
+        Predict the target labels using the given data.
+
+        Args:
+            model_path (str): Path to the trained model pickle file.
+            data_path (str): Path to the data CSV file.
+
+        Returns:
+            list: Predicted labels.
+        """
+        model_package: PackagedModel = file_to_pickle(file_path=model_path)
+
+        data: pd.DataFrame = csv_to_dataframe(file_path=data_path)
+        labeled_df, _ = self._create_df_with_labels(data=data)
+        processed_data: ProcessedData = self._preprocess_data(
+            data=labeled_df,
+            scaler=model_package.scaler,
+            df_col_names=model_package.df_col_names,
+            drop_columns=[model_package.df_col_names.id],
+            val_split=0.0,
+        )
+
+        predictions = model_package.model.predict(X=processed_data.train_df)
+
+        labeled_predictions = self._predictions_labels(
+            predictions=predictions,
+            binary_target_map=model_package.binary_target_map,
+        )
+
+        return labeled_predictions
+
+    def train_model(self, config_path: Path, dataset_path: Path) -> Path:
         """
         Train a new model using the given dataset
         and model configuration.
@@ -73,14 +133,14 @@ class MultiLayerPerceptron:
             str: Success message with the name of the trained model.
         """
         data: pd.DataFrame = csv_to_dataframe(file_path=dataset_path)
-        labeled_df, labels = self._create_df_with_labels(data=data)
+        labeled_df, df_col_names = self._create_df_with_labels(data=data)
 
         # self._plot_data(data=labeled_df, labels=labels)
 
         proccessed_data: ProcessedData = self._preprocess_data(
             data=labeled_df,
-            labels=labels,
-            drop_columns=[labels.id]
+            df_col_names=df_col_names,
+            drop_columns=[df_col_names.id],
         )
 
         model_config: dict = json_to_dict(file_path=config_path)
@@ -95,16 +155,19 @@ class MultiLayerPerceptron:
         )
         # self._plot_model_history(model=trained_model, config=validated_config)
 
-        # named_model: str = self.__save_model(
-        #     model=trained_model,
-        #     scaler=scaler,
-        #     labels=labels,
-        #     config=model_config
-        # )
+        saved_model_path: Path = self._save_model_to_pkl(
+            model=trained_model,
+            scaler=proccessed_data.scaler,
+            df_col_names=df_col_names,
+            binary_target_map=proccessed_data.binary_target_map,
+            config=validated_config,
+        )
 
-        # return f"Successfully trained model: {named_model}"
+        return saved_model_path
 
-    def _create_df_with_labels(self, data: pd.DataFrame) -> tuple[pd.DataFrame, CSVLabels]:
+    def _create_df_with_labels(
+        self, data: pd.DataFrame
+    ) -> tuple[pd.DataFrame, CSVColNames]:
         """
         Create a new CSV file with labeled columns.
 
@@ -119,7 +182,7 @@ class MultiLayerPerceptron:
         Returns:
             DataFrame: Data with labeled columns.
         """
-        base_features: List[str] = self.config.config.wdbc_labels.base_features
+        base_features: list[str] = self.config.config.wdbc_labels.base_features
         patient_id: str = self.config.config.wdbc_labels.id
         diagnosis: str = self.config.config.wdbc_labels.diagnosis
 
@@ -135,15 +198,13 @@ class MultiLayerPerceptron:
 
         data.columns = col_names
 
-        labels = CSVLabels(
-            id=patient_id,
-            target=diagnosis,
-            features=col_names[2:]
+        labels = CSVColNames(
+            id=patient_id, target=diagnosis, features=col_names[2:]
         )
 
         return data, labels
 
-    def _plot_data(self, data: pd.DataFrame, labels: CSVLabels) -> None:
+    def _plot_data(self, data: pd.DataFrame, labels: CSVColNames) -> None:
         """
         Plot the data distribution, correlation heatmap,
         pairplot, and boxplots.
@@ -171,7 +232,7 @@ class MultiLayerPerceptron:
     def _preprocess_data(
         self,
         data: pd.DataFrame,
-        labels: CSVLabels,
+        df_col_names: CSVColNames,
         scaler: StandardScaler = StandardScaler(),
         drop_columns: list[str] = [],
         val_split: float = 0.2,
@@ -194,13 +255,15 @@ class MultiLayerPerceptron:
         """
         return self.data_processor.load_from_df(
             df=data,
-            target_col=labels.target,
+            target_col=df_col_names.target,
             scaler=scaler,
             drop_columns=drop_columns,
             val_split=val_split,
         )
 
-    def _build_model(self, validated_config: SequentialModelConfig) -> Sequential:
+    def _build_model(
+        self, validated_config: SequentialModelConfig
+    ) -> Sequential:
         """
         Build a new model using the given configuration.
 
@@ -224,7 +287,7 @@ class MultiLayerPerceptron:
                         units=layer.units,
                         activation=layer.activation,
                         kernel_initializer=layer.kernel_initializer,
-                        kernel_regularizer=layer.kernel_regularizer
+                        kernel_regularizer=layer.kernel_regularizer,
                     )
                 )
             elif layer.type == "dropout":
@@ -256,16 +319,12 @@ class MultiLayerPerceptron:
         Returns:
             Sequential: Trained model.
         """
-        self.logger.info(f"\n{model.summary()}")
         model.fit(
             X=proccessed_data.train_df,
             epochs=validated_config.epochs,
             val_data=proccessed_data.val_df,
             callbacks=[
-                EarlyStopping(
-                    monitor="val_loss",
-                    patience=200,
-                    verbose=True)
+                EarlyStopping(monitor="val_loss", patience=200, verbose=True)
             ],
             batch_size=validated_config.batch_size,
             verbose=True,
@@ -273,7 +332,9 @@ class MultiLayerPerceptron:
 
         return model
 
-    def _plot_model_history(self, model: Sequential, config: SequentialModelConfig) -> None:
+    def _plot_model_history(
+        self, model: Sequential, config: SequentialModelConfig
+    ) -> None:
         """
         Plot the model training history.
 
@@ -286,36 +347,21 @@ class MultiLayerPerceptron:
         Returns:
             None
         """
-        history = model.history
-        model_name = config.name
+        history: History = model.history
+        model_name: str = config.name
         if history is None:
             raise ValueError("Model history is empty.")
 
-        self.logger.info(f"Model history: {json.dumps(history, indent=4)}")
+        history.plot(model_name=model_name)
 
-        df = pd.DataFrame(
-            {
-                "train_loss": history["loss"]["training"],
-                "val_loss": history["loss"]["validation"],
-                "train_accuracy": history["accuracy"]["training"],
-                "val_accuracy": history["accuracy"]["validation"],
-            }
-        )
-
-        plotter = Plotter(data=df, save_dir=self.config.plot_dir)
-
-        plotter.plot_loss(model_name=model_name)
-        plotter.plot_accuracy(model_name=model_name)
-
-        self.logger.info(f"Plotted model history for: {model_name}.")
-
-    def __save_model(
+    def _save_model_to_pkl(
         self,
         model: Sequential,
         scaler: StandardScaler,
-        labels: dict,
-        config: dict,
-    ) -> str:
+        df_col_names: CSVColNames,
+        binary_target_map: dict,
+        config: SequentialModelConfig,
+    ) -> Path:
         """
         Save the trained model to a pickle file.
 
@@ -329,124 +375,26 @@ class MultiLayerPerceptron:
         Returns:
             str: Name of the saved model.
         """
-        pkl_model = {
-            "model": model,
-            "scaler": scaler,
-            "labels": labels,
-            "config": config,
-        }
-
-        model_name = config.get("model_name", "model")
-        model_path = f"{self.config.model_dir}/{model_name}.pkl"
-        with open(model_path, "wb") as f:
-            pickle.dump(pkl_model, f)
-
-        self.logger.info(f"Saved model to:\n{model_path}")
-
-        return model_name
-
-    def _load_model(self, model_path: str):
-        """
-        Load a trained model from a pickle file.
-
-        Args:
-            model_path (str): Path to the trained model pickle file.
-
-        Returns:
-            Sequential: Model.
-            StandardScaler: Scaler.
-            dict: Labels.
-            dict: Model configuration.
-        """
-        if not os.path.exists(model_path):
-            raise FileNotFoundError(f"Model not found at: {model_path}")
-
-        with open(model_path, "rb") as f:
-            pkl_model = pickle.load(f)
-
-        model = pkl_model["model"]
-        scaler = pkl_model["scaler"]
-        labels = pkl_model["labels"]
-        model_config = pkl_model["config"]
-
-        self.logger.info(
-            f"Loaded model from:\n{model_path}\n"
-            f"Model: {model.summary()}\n"
-            f"Scaler: {scaler}\n"
-            f"Labels: {labels}\n"
-            f"Config: {json.dumps(model_config, indent=4)}"
-        )
-
-        return model, scaler, labels, model_config
-
-    def evaluate_model(self, model_path: str, data_path: str) -> str:
-        """
-        Evaluate a trained model using the given data.
-
-        Args:
-            model_path (str): Path to the trained model pickle file.
-            data_path (str): Path to the data CSV file.
-
-        Returns:
-            str: Evaluation results.
-        """
-        model, scaler, labels, model_config = self._load_model(
-            model_path=model_path
-        )
-        data = self._create_df_with_labels(data_path)
-        processed_data, _, _, _ = self._preprocess_data(
-            data=data,
+        pkl_model = PackagedModel(
+            model=model,
             scaler=scaler,
-            target="diagnosis",
-            drop_columns=["id"],
-            val_split=0.0,
+            df_col_names=df_col_names,
+            binary_target_map=binary_target_map,
+            config=config,
         )
 
-        loss, accuracy = model.evaluate(X=processed_data)
-
-        message = f"Model evaluation: Loss: {loss}, Accuracy: {accuracy}"
-
-        self.logger.info(message)
-
-        return message
-
-    def predict(self, model_path: str, data_path: str) -> list:
-        """
-        Predict the target labels using the given data.
-
-        Args:
-            model_path (str): Path to the trained model pickle file.
-            data_path (str): Path to the data CSV file.
-
-        Returns:
-            list: Predicted labels.
-        """
-        model, scaler, labels, model_config = self._load_model(
-            model_path=model_path
+        model_name: str = config.name
+        model_path: Path = Path(
+            f"{self.config.trained_models_dir}/{model_name}.pkl"
         )
-        data = self._create_df_with_labels(data_path)
-        processed_data, _, _, _ = self._preprocess_data(
-            data=data,
-            scaler=scaler,
-            target="diagnosis",
-            drop_columns=["id"],
-            val_split=0.0,
-        )
+        pickle_to_file(obj=pkl_model, file_path=model_path)
 
-        predictions = model.predict(X=processed_data)
-
-        labeled_predictions = self._predictions_labels(
-            predictions=predictions, labels=labels
-        )
-
-        self.logger.info(f"Predictions: {labeled_predictions}")
-        loss, accuracy = model.evaluate(X=processed_data)
-        # print(f"Loss: {loss}, Accuracy: {accuracy}")
-
-        return labeled_predictions
+        return model_path
 
     @staticmethod
-    def _predictions_labels(predictions: np.ndarray, labels: dict) -> list:
+    def _predictions_labels(
+        predictions: np.ndarray, binary_target_map: dict
+    ) -> list:
         """
         Convert the model predictions to target labels. Depending
         on the model output shape, the predictions are either
@@ -465,9 +413,13 @@ class MultiLayerPerceptron:
             else:
                 predictions = np.argmax(predictions, axis=1)
 
-        labeled_predictions = []
+        labeled_predictions: list[str] = []
         for pred in predictions:
-            pred = next(key for key, value in labels.items() if value == pred)
+            pred: str = next(
+                key
+                for key, value in binary_target_map.items()
+                if value == pred
+            )
             labeled_predictions.append(pred)
 
         return labeled_predictions
@@ -475,19 +427,26 @@ class MultiLayerPerceptron:
 
 if __name__ == "__main__":
     try:
-        # "data/csv/data_train.csv"
-        train_path = Path(__file__).parent / "data/csv/data_training.csv"
+        # CSV Data Paths
+        train_path: Path = Path(__file__).parent / "data/csv/data_training.csv"
         test_path: Path = Path(__file__).parent / "data/csv/data_test.csv"
-        # mpath: Path = Path(__file__).parent / "data/models/softmax_model.pkl"
-        conf_path: Path = Path(__file__).parent / "data/models/softmax_model.json"
-        # mpath = "data/models/sigmoid_model.pkl"
-        # conf_path = Path(__file__).parent /  "data/models/sigmoid_model.json"
+
+        # Softmax Model Paths
+        mpath: Path = Path(__file__).parent / "data/models/softmax_model.pkl"
+        conf_path: Path = (
+            Path(__file__).parent / "data/models/softmax_model.json"
+        )
+        # Sigmoid Model Paths
+        # mpath: Path = Path(__file__).parent / "data/models/sigmoid_model.pkl"
+        # conf_path: Path = (
+        #     Path(__file__).parent / "data/models/sigmoid_model.json"
+        # )
 
         mlp = MultiLayerPerceptron()
-        mlp.train_model(dataset_path=train_path, config_path=conf_path)
-        # mlp.evaluate_model(model_path=mpath, data_path=dpath)
-        # print(mlp.predict(model_path=mpath, data_path=test_path))
-        # print(mlp.evaluate_model(model_path=mpath, data_path=test_path))
+        mlp.train_model(config_path=conf_path, dataset_path=train_path)
+        print(mlp.predict(model_path=mpath, data_path=test_path))
+        print(mlp.evaluate_model(model_path=mpath, data_path=test_path))
+
     except Exception as e:
         print(f"Error: {e}")
         raise e

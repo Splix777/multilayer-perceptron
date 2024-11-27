@@ -1,338 +1,228 @@
-import json
-import os
-import sys
+from typing import Optional
+
+import typer
+from rich.console import Console
+from rich.prompt import Prompt
+from rich.table import Table
 from pathlib import Path
+
 from mlp import MultiLayerPerceptron
 from src.utils.config import Config
+from src.utils.file_handlers import save_json_to_file
+
+app = typer.Typer()
+console = Console()
 
 config = Config()
 
 
-def load_model_and_predict(mlp: MultiLayerPerceptron, model_path: str):
-    """
-    Load a model and make predictions using a MultiLayerPerceptron.
-
-    This function prompts the user to enter the path to a
-    data file for prediction, checks if the file exists,
-    and then uses the provided MultiLayerPerceptron model
-    to make predictions on the data.
-
-    Args:
-        mlp (MultiLayerPerceptron): The MultiLayerPerceptron
-            model for prediction.
-        model_path (str): The path to the model file to load.
-
-    Returns:
-        None
-    """
-    data_path = input("Enter the path to the data file to predict: ")
-    if not os.path.exists(data_path):
-        print("File does not exist. Exiting...")
-        sys.exit(0)
-
-    print(mlp.predict(model_path.rstrip(), data_path.rstrip()))
+def list_models(model_dir: Path) -> list[Path]:
+    """Helper function to list available models."""
+    models: list[Path] = [
+        file for file in model_dir.iterdir() if file.suffix == ".pkl"
+    ]
+    return models
 
 
-def load_model_and_evaluate(mlp: MultiLayerPerceptron, model_path: str):
-    """
-    Load a model and evaluate it using a MultiLayerPerceptron.
-
-    This function prompts the user to enter the path to a data
-    file for evaluation, checks if the file exists, and then
-    uses the provided MultiLayerPerceptron model to evaluate
-    the model's performance on the data.
-
-    Args:
-        mlp (MultiLayerPerceptron): The MultiLayerPerceptron
-            model for evaluation.
-        model_path (str): The path to the model file to load.
-
-    Returns:
-        None
-    """
-    data_path = input("Enter the path to the data file to predict: ")
-    if not os.path.exists(data_path):
-        print("File does not exist. Exiting...")
-        sys.exit(0)
-
-    print(mlp.evaluate_model(model_path.rstrip(), data_path.rstrip()))
-
-
-def train_model(mlp: MultiLayerPerceptron):
-    """
-    Train a model using a MultiLayerPerceptron.
-
-    This function guides the user through providing a path
-    to a data file, optionally loading a custom model
-    configuration, and configuring a new model before
-    training the MultiLayerPerceptron model on the dataset.
-
-    Args:
-        mlp: The MultiLayerPerceptron model to train.
-
-    Returns:
-        None
-    """
-    data_path = input("Please provide a path to the data file: ").lower()
-    if not os.path.exists(data_path) or not data_path.endswith(".csv"):
-        print("File does not exist or is not a CSV file. Exiting...")
-        sys.exit(0)
-
-    model_config = input(
-        "Do you want to load a custom model configuration? (y/n): "
-    ).lower()
-
-    conf_path = None
-    configure_new = None
-    if model_config == "y":
-        conf_path = input(
-            "Please provide a path to the model configuration file: "
+@app.command("train")
+def train_model() -> None:
+    """Train a new MultiLayerPerceptron model."""
+    try:
+        data_path: str = Prompt.ask(
+            "[blue]Enter the path to the data file[/blue]"
         )
-        if not os.path.exists(conf_path) or not conf_path.endswith(".json"):
-            print("File does not exist. Exiting...")
-            sys.exit(0)
-    else:
-        configure_new = input(
-            "Do you want to configure a new model? (y/n): "
+        if not Path(data_path).exists() or not data_path.endswith(".csv"):
+            console.print("[red]Invalid file path or file is not a CSV.[/red]")
+            raise typer.Exit()
+
+        config_option: str = Prompt.ask(
+            "[blue]Do you want to load a custom configuration? (y/n)[/blue]"
         ).lower()
 
-    if configure_new == "y":
-        conf_path = configure_new_model()
-    if not conf_path:
-        print("No model configuration provided. Exiting...")
-        sys.exit(0)
-
-    results = mlp.train_model(dataset_path=data_path, config_path=conf_path)
-    print(results)
-
-
-def get_user_choice(prompt: str, options_dict: dict) -> str:
-    """
-    Helper function to display options and get user choice.
-
-    This function displays a prompt and a list of options
-    for the user to choose from, then returns the key
-    corresponding to the selected option.
-
-    Args:
-        prompt (str): The prompt to display to the user.
-        options_dict (dict): A dictionary of options to display.
-
-    Returns:
-        str: The key corresponding to the selected option.
-    """
-    while True:
-        print(prompt)
-        for num, (key, value) in enumerate(options_dict.items(), start=1):
-            print(f"{num}. {value}")
-        choice = input("Enter your choice: ").strip()
-        if choice.isdigit() and 1 <= int(choice) <= len(options_dict):
-            return list(options_dict.keys())[int(choice) - 1]
+        conf_path: Optional[str] = None
+        if config_option == "y":
+            conf_path = Prompt.ask(
+                "[blue]Enter the path to the configuration file[/blue]"
+            )
+            if not Path(conf_path).exists() or not conf_path.endswith(".json"):
+                console.print("[red]Invalid configuration file path.[/red]")
+                raise typer.Exit()
         else:
-            print("Invalid choice...")
+            create_new: str = Prompt.ask(
+                "[blue]Do you want to configure a new model? (y/n)[/blue]"
+            ).lower()
+            if create_new == "y":
+                conf_path = configure_new_model()
+
+        if not conf_path:
+            console.print("[red]No configuration provided. Exiting...[/red]")
+            raise typer.Exit()
+
+        mlp = MultiLayerPerceptron()
+        results: Path = mlp.train_model(
+            config_path=Path(conf_path), dataset_path=Path(data_path)
+        )
+        console.print(
+            f"[green]Training completed![/green]\nModel saved to: {results}"
+        )
+
+    except Exception as e:
+        console.print(f"[red]Error: {e}[/red]")
 
 
-def configure_new_model() -> Path:
-    """
-    Configure a new model based on user input.
+@app.command("predict")
+def predict_model() -> None:
+    """Load a trained model and make predictions."""
+    model_path: Path = select_model(config.trained_models_dir)
+    if not model_path:
+        console.print("[red]No model selected. Exiting...[/red]")
+        raise typer.Exit()
 
-    This function guides the user through creating
-    a new model configuration by selecting various
-    options such as model name, layer types, activations,
-    optimizers, losses, batch size, and epochs,
-    and then saves the configuration to a JSON file.
+    data_path: str = Prompt.ask("[blue]Enter the path to the data file[/blue]")
+    if not Path(data_path).exists():
+        console.print("[red]Invalid data file path.[/red]")
+        raise typer.Exit()
 
-    Returns:
-        Path: The path to the saved model configuration file.
-    """
-    possible_layers = {"dense": "Dense Layer", "dropout": "Dropout Layer"}
-    possible_activations = {
-        "relu": "ReLU",
-        "lrelu": "Leaky ReLU",
-        "prelu": "Parametric ReLU",
-        "sigmoid": "Sigmoid",
-        "tanh": "Hyperbolic Tangent (Tanh)",
-        "softmax": "Softmax",
-    }
-    possible_kernel_initializers = {
-        "glorot_uniform": "Glorot Uniform",
-        "glorot_normal": "Glorot Normal",
-        "he_normal": "He Normal",
-        "he_uniform": "He Uniform",
-    }
-    possible_optimizers = {"adam": "Adam", "rmsprop": "RMSprop"}
-    possible_losses = {
-        "categorical_crossentropy": "Categorical Crossentropy",
-        "binary_crossentropy": "Binary Crossentropy",
-    }
+    mlp = MultiLayerPerceptron()
+    predictions: list[str] = mlp.predict(model_path, Path(data_path))
+    console.print(f"[green]Predictions:[/green]\n{predictions}")
 
-    model_name = input("Enter the name of the model: ").strip()
-    if not model_name:
-        print("Invalid model name. Exiting...")
-        sys.exit(0)
 
-    num_layers = input("Enter the number of hidden layers: ").strip()
-    if not num_layers.isdigit():
-        print("Invalid number of layers. Exiting...")
-        sys.exit(0)
+@app.command("evaluate")
+def evaluate_model() -> None:
+    """Load a trained model and evaluate its performance."""
+    model_path: Path = select_model(config.trained_models_dir)
+    if not model_path:
+        console.print("[red]No model selected. Exiting...[/red]")
+        raise typer.Exit()
 
-    layers = [{"type": "input", "input_shape": 30}]
+    data_path: str = Prompt.ask("[blue]Enter the path to the data file[/blue]")
+    if not Path(data_path).exists():
+        console.print("[red]Invalid data file path.[/red]")
+        raise typer.Exit()
+
+    mlp = MultiLayerPerceptron()
+    loss, acc = mlp.evaluate_model(model_path, Path(data_path))
+
+    console.print(
+        f"[green]Evaluation results:[/green]\n"
+        f"{acc * 100:.2f}% Accuracy\n"
+        f"{loss:.4f} Loss"
+        )
+
+
+def configure_new_model() -> str:
+    """Create and save a new model configuration."""
+    model_name: str = Prompt.ask("[blue]Enter the model name[/blue]")
+    num_layers: str = Prompt.ask(
+        "[blue]Enter the number of hidden layers[/blue]", default="1"
+    )
+
+    layers: list[dict] = []
+    layers.append({"type": "input", "input_shape": 30})
     for i in range(int(num_layers)):
-        print(f"\nConfiguring layer {i + 1}")
-        layer_type = get_user_choice("Select layer type:", possible_layers)
+        console.print(f"[cyan]Configuring layer {i + 1}[/cyan]")
+        layer_type: str = Prompt.ask(
+            "[blue]Select layer type (dense/dropout)[/blue]",
+            choices=["dense", "dropout"],
+        )
+
         if layer_type == "dense":
-            units = input(f"Enter the size of layer {i + 1}: ").strip()
-            if not units.isdigit():
-                print("Invalid size. Exiting...")
-                sys.exit(0)
-            activation = get_user_choice(
-                "Select activation function:", possible_activations
+            units: str = Prompt.ask("[blue]Enter the number of units[/blue]")
+            activation: str = Prompt.ask(
+                "[blue]Select activation function (lrelu, relu, sigmoid, tanh, softmax)[/blue]",
+                choices=["lrelu", "relu", "sigmoid", "tanh", "softmax"],
             )
-            kernel_initializer = get_user_choice(
-                "Select kernel initializer:", possible_kernel_initializers
+            kernel_initializer: str = Prompt.ask(
+                "[blue]Select kernel initializer (glorot_uniform, he_normal)[/blue]",
+                choices=["glorot_uniform", "he_normal"],
             )
-            layers.append(
-                {
+            kernel_regularizer: str = Prompt.ask(
+                "[blue]Select kernel regularizer (l1, l2, None)[/blue]",
+                choices=["l1", "l2", "None"],
+            )
+            if kernel_regularizer == "None":
+                dense_layer: dict[str, str | int] = {
                     "type": "dense",
                     "units": int(units),
                     "activation": activation,
                     "kernel_initializer": kernel_initializer,
                 }
-            )
+            else:
+                dense_layer = {
+                    "type": "dense",
+                    "units": int(units),
+                    "activation": activation,
+                    "kernel_initializer": kernel_initializer,
+                    "kernel_regularizer": kernel_regularizer,
+                }
+
+            layers.append(dense_layer)
+
+
         elif layer_type == "dropout":
-            drop_rate = input(
-                f"Enter the dropout rate for layer {i + 1} (0-1): "
-            ).strip()
-            try:
-                drop_rate = float(drop_rate)
-                if not (0 <= drop_rate <= 1):
-                    raise ValueError
-            except ValueError:
-                print("Invalid dropout rate. Exiting...")
-                sys.exit(0)
-            layers.append({"type": "dropout", "rate": drop_rate})
-    layers.append({"type": "dense", "units": 2, "activation": "softmax"})
+            rate: str = Prompt.ask(
+                "[blue]Enter dropout rate (0-1)[/blue]", default="0.5"
+            )
+            layers.append({"type": "dropout", "rate": float(rate)})
 
-    optimizer = get_user_choice("Select optimizer:", possible_optimizers)
-    learning_rate = input("Enter the learning rate: ").strip()
-    try:
-        learning_rate = float(learning_rate)
-        if learning_rate <= 0:
-            raise ValueError
-    except ValueError:
-        print("Invalid learning rate. Exiting...")
-        sys.exit(0)
-    final_optimizer = {"type": optimizer, "learning_rate": learning_rate}
+    optimizer_type: str = Prompt.ask(
+        "[blue]Select optimizer (adam, rmsprop)[/blue]",
+        choices=["adam", "rmsprop"],
+    )
+    learning_rate: str = Prompt.ask(
+        "[blue]Enter learning rate[/blue]", default="0.001"
+    )
+    optimizer: dict[str, str | float] = {
+        "type": optimizer_type,
+        "learning_rate": float(learning_rate)
+    }
 
-    loss = get_user_choice("Select loss function:", possible_losses)
+    loss: str = Prompt.ask(
+        "[blue]Select loss function (categorical_crossentropy, binary_crossentropy)[/blue]",
+        choices=["categorical_crossentropy", "binary_crossentropy"],
+    )
 
-    batch_size = input("Enter the batch size: ").strip()
-    if not batch_size.isdigit() or int(batch_size) <= 0:
-        print("Invalid batch size. Exiting...")
-        sys.exit(0)
+    batch_size: str = Prompt.ask("[blue]Enter batch size[/blue]", default="32")
+    epochs: str = Prompt.ask("[blue]Enter number of epochs[/blue]", default="10")
 
-    epochs = input("Enter the number of epochs: ").strip()
-    if not epochs.isdigit() or int(epochs) <= 0:
-        print("Invalid number of epochs. Exiting...")
-        sys.exit(0)
-
-    final_config = {
-        "model_name": model_name,
+    config_path: Path = config.trained_models_dir / f"{model_name}.json"
+    model_config = {
+        "name": model_name,
         "layers": layers,
-        "optimizer": final_optimizer,
+        "optimizer": optimizer,
         "loss": loss,
         "batch_size": int(batch_size),
         "epochs": int(epochs),
     }
 
-    save_path = config.model_dir / f"{model_name}.json"
-    with open(save_path, "w") as f:
-        json.dump(final_config, f, indent=4)
+    save_json_to_file(file_path=config_path, data=model_config)
 
-    print(f"Configuration saved to {save_path}")
-    return save_path
+    console.print(f"[green]Configuration saved at {config_path}[/green]")
+    return str(config_path)
 
 
-def select_model(model_dir: Path) -> str:
-    """
-    Select a model from the provided directory.
-
-    Args:
-        model_dir (Path): The directory containing the models.
-
-    Returns:
-        str: The path to the selected model file,
-            or an empty string if no model is selected.
-    """
-    if not os.path.exists(model_dir):
-        print("Model directory does not exist. Exiting...")
-        sys.exit(0)
-
-    models = []
-    for root, dirs, files in os.walk(model_dir):
-        models.extend(file for file in files if file.endswith(".pkl"))
-
+def select_model(model_dir: Path) -> Path:
+    """Select a model from the directory."""
+    models: list[Path] = list_models(model_dir)
     if not models:
-        print("No models found in the directory...")
-        return ""
-    for i, model in enumerate(models):
-        print(f"{i + 1}. {model}")
+        console.print("[red]No models found in the directory.[/red]")
+        raise typer.Exit()
 
-    response = input("Select a Model or press any other key to continue: ")
-    try:
-        response = int(response)
-        if response < 1 or response > len(models):
-            raise ValueError
-    except ValueError:
-        print("No model selected.")
-        return ""
+    table = Table(title="Available Models")
+    table.add_column("Index", justify="center", style="cyan")
+    table.add_column("Model Name", style="magenta")
 
-    return os.path.join(model_dir, models[response - 1])
+    for idx, model in enumerate(models, 1):
+        table.add_row(str(idx), model.name)
 
-
-def main():
-    """
-    Execute the main functionality of the program.
-
-    This function orchestrates the main flow of the program,
-    including loading, predicting, evaluating,
-    and training a model based on user input.
-
-    Returns:
-        None
-    """
-    model_path = select_model(config.model_dir)
-    mlp = MultiLayerPerceptron()
-
-    if os.path.exists(model_path):
-        response = input(
-            "Model exists. Do you want to load it? (y/n): "
-        ).lower()
-        if response == "y":
-            action = input(
-                "Do you want to predict | evaluate the model? (p/e): "
-            ).lower()
-            if action == "p":
-                load_model_and_predict(mlp, model_path)
-            elif action == "e":
-                load_model_and_evaluate(mlp, model_path)
-            else:
-                print("Invalid option. Exiting...")
-        else:
-            response = input(
-                "Do you want to re-train the model? (y/n): "
-            ).lower()
-            if response == "y":
-                train_model(mlp)
-            else:
-                print("Exiting...")
-    else:
-        response = input("Do you want to train a model? (y/n): ").lower()
-        if response == "y":
-            train_model(mlp)
-        else:
-            print("Exiting...")
+    console.print(table)
+    choice = Prompt.ask("[blue]Enter the model index[/blue]")
+    if not choice.isdigit() or not (1 <= int(choice) <= len(models)):
+        console.print("[red]Invalid choice.[/red]")
+        raise typer.Exit()
+    return models[int(choice) - 1]
 
 
 if __name__ == "__main__":
-    main()
+    app()

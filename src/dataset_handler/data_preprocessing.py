@@ -3,7 +3,6 @@ import pandas as pd
 from sklearn.model_selection import train_test_split
 from sklearn.preprocessing import LabelEncoder, StandardScaler
 
-from src.utils.logger import Logger
 from src.utils.decorators import error_handler
 from src.schemas.processed_data import ProcessedData
 
@@ -29,7 +28,6 @@ class DataPreprocessor:
         Initialize the DataLoader with the given scaler.
         """
         self.label_encoder: LabelEncoder = LabelEncoder()
-        self.logger: Logger = Logger("data_preprocessor")
 
     @error_handler(exceptions_to_handle=(ValueError, KeyError))
     def load_from_df(
@@ -66,7 +64,7 @@ class DataPreprocessor:
 
         # Standardize entire dataset if no validation split
         if val_split == 0:
-            df, scaler = self._scale_dataframe(df, target_col, scaler)
+            df = self._scale_dataframe(df, target_col, scaler, fit=False)
             return ProcessedData(
                 train_df=df,
                 val_df=pd.DataFrame(),
@@ -79,8 +77,8 @@ class DataPreprocessor:
         )
 
         # Standardize train and validation sets. Scale them separately to avoid data leakage.
-        train_df, scaler = self._scale_dataframe(train_df, target_col, scaler)
-        val_df, _ = self._scale_dataframe(val_df, target_col, scaler)
+        train_df = self._scale_dataframe(train_df, target_col, scaler, fit=True)
+        val_df = self._scale_dataframe(val_df, target_col, scaler, fit=False)
 
         return ProcessedData(
             train_df=train_df,
@@ -109,26 +107,31 @@ class DataPreprocessor:
         return df, labels
 
     def _scale_dataframe(
-        self, df: pd.DataFrame, target_col: str, scaler: StandardScaler
-    ) -> tuple[pd.DataFrame, StandardScaler]:
+        self, df: pd.DataFrame, target_col: str, scaler: StandardScaler, fit: bool
+    ) -> pd.DataFrame:
         """
-        Standardize the features of the DataFrame.
+        Scale the DataFrame.
 
         Args:
             df (pd.DataFrame): Input DataFrame.
             target_col (str): Name of the target column.
-            scaler (StandardScaler): Scaler object for standardization.
+            scaler (StandardScaler): Scaler for standardization.
+            fit (bool): Whether to fit the scaler on the data.
 
         Returns:
-            tuple: Standardized DataFrame and the fitted scaler.
+            pd.DataFrame: Scaled DataFrame.
         """
-        features = df.drop(columns=[target_col])
-        scaled_features = scaler.fit_transform(features)
+        features: pd.DataFrame = df.drop(columns=[target_col])
+        if fit:
+            scaled_features = scaler.fit_transform(features)
+        else:
+            scaled_features = scaler.transform(features)
+        
         scaled_df = pd.DataFrame(
             scaled_features, columns=features.columns, index=df.index
         )
         scaled_df[target_col] = df[target_col]
-        return scaled_df, scaler
+        return scaled_df
 
     def standardize_data(
         self, df: pd.DataFrame, label_col: str, scaler: StandardScaler

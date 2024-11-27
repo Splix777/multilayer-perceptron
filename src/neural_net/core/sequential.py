@@ -10,10 +10,10 @@ from sklearn.model_selection import train_test_split
 
 from src.schemas.fit_params import FitParams
 from src.schemas.split_data import SplitData
+from src.neural_net.history.model_history import History
 from src.neural_net.core.model import Model
 from src.neural_net.layers.layer import Layer
 from src.neural_net.layers.input import InputLayer
-from src.neural_net.layers.dropout import Dropout
 from src.neural_net.layers.dense import Dense
 from src.neural_net.optimizers.adam import AdamOptimizer
 from src.neural_net.optimizers.rms_prop import RMSpropOptimizer
@@ -33,20 +33,11 @@ from src.neural_net.utils.accuracy_metrics import (
     categorical_accuracy,
 )
 from src.neural_net.utils.data_batch_utils import iter_batches
-from src.utils.logger import Logger
 
 
 class Sequential(Model):
     def __init__(self) -> None:
-        self.logger: Logger = Logger("Sequential")
-        self.losses: dict[str, dict[int, float]] = {
-            "training": {},
-            "validation": {},
-        }
-        self.accuracy: dict[str, dict[int, float]] = {
-            "training": {},
-            "validation": {},
-        }
+        self.history: History = History()
         self.layers: list[Layer] = []
         self.callbacks: list[Callback] = []
         self.built = False
@@ -235,7 +226,7 @@ class Sequential(Model):
             max_batch_size=max_batch_size,
             batch_size_factor=batch_size_factor,
         )
-
+        self._activate_train_mode()
         previous_train_loss: Optional[float] = None
 
         for epoch in range(epochs):
@@ -257,33 +248,33 @@ class Sequential(Model):
             )
 
             log: dict[str, float] = self._update_metrics(
-                train_loss, train_accuracy, val_loss, val_accuracy, epoch
+                train_loss,
+                train_accuracy,
+                val_loss,
+                val_accuracy
             )
 
             # Adjust batch size if necessary
-            if batch_size_mode == "auto":
-                if previous_train_loss is not None:
-                    # If loss decreased significantly, increase the batch size
-                    if train_loss[-1] < previous_train_loss:
-                        new_batch_size = int(batch_size * batch_size_factor)
-                        batch_size = min(new_batch_size, max_batch_size)
-                    # If loss increased, decrease the batch size
-                    elif train_loss[-1] > previous_train_loss:
-                        new_batch_size = int(batch_size / batch_size_factor)
-                        batch_size = max(new_batch_size, min_batch_size)
+            batch_size = self._adjust_batch_size(
+                batch_size,
+                train_loss[-1],
+                previous_train_loss,
+                batch_size_mode,
+                batch_size_factor,
+                min_batch_size,
+                max_batch_size,
+            )
 
-                # Store the current epoch's loss for comparison in the next epoch
-                previous_train_loss = train_loss[-1]
+            # Store the current epoch's loss for comparison in the next epoch
+            previous_train_loss = train_loss[-1]
 
-            if verbose:
-                print(
-                    f"Epoch {epoch + 1}/{epochs}: "
-                    f"Accuracy: {log['accuracy']:.3f}, "
-                    f"Loss: {log['loss']:.3f} -- "
-                    f"Val Accuracy: {log['val_accuracy']:.3f}, "
-                    f"Val Loss: {log['val_loss']:.3f} -- "
-                    f"Batch Size: {batch_size}"
-                )
+            self._print_epoch_log(
+                verbose,
+                epoch,
+                epochs,
+                log,
+                batch_size,
+            )
 
             for callback in callbacks:
                 callback.on_epoch_end(epoch, logs=log)
@@ -307,7 +298,7 @@ class Sequential(Model):
         self._deactivate_train_mode()
         X_eval, _ = one_hot_encoding(X)
         predictions = self.call(X_eval)
-        self.dropout_active = True
+        self._activate_train_mode()
         return predictions
 
     def evaluate(self, X: pd.DataFrame) -> tuple[float, float]:
@@ -326,12 +317,12 @@ class Sequential(Model):
         else:
             X_eval, y_eval = label_encoding(X)
         predictions = self.call(X_eval)
-        loss = self.loss(y_eval, predictions)
+        loss: float = self.loss(y_eval, predictions)
         if isinstance(self.loss, CategoricalCrossEntropy):
-            accuracy = categorical_accuracy(y_eval, predictions)
+            accuracy: float = categorical_accuracy(y_eval, predictions)
         else:
-            accuracy = binary_accuracy(y_eval, predictions)
-        self.dropout_active = True
+            accuracy: float = binary_accuracy(y_eval, predictions)
+        self._activate_train_mode()
         return loss, accuracy
 
     # <-- Epoch Methods -->
@@ -385,6 +376,45 @@ class Sequential(Model):
                 bias=layer.bias,
                 weights_gradient=layer.weight_gradients,
                 bias_gradients=layer.bias_gradients,
+            )
+
+    def _adjust_batch_size(
+        self,
+        batch_size: int,
+        current_loss: float,
+        previous_loss: Optional[float],
+        mode: str,
+        factor: float,
+        min_batch: int,
+        max_batch: int,
+    ) -> int:
+        if mode != "auto" or previous_loss is None:
+            return batch_size
+
+        if current_loss < previous_loss:
+            new_batch_size = int(batch_size * factor)
+            return min(new_batch_size, max_batch)
+        elif current_loss > previous_loss:
+            new_batch_size = int(batch_size / factor)
+            return max(new_batch_size, min_batch)
+        return batch_size
+
+    def _print_epoch_log(
+        self,
+        verbose: bool,
+        epoch: int,
+        epochs: int,
+        log: dict[str, float],
+        batch_size: int,
+    ) -> None:
+        if verbose:
+            print(
+                f"Epoch {epoch + 1}/{epochs}: "
+                f"Accuracy: {log['accuracy']:.3f}, "
+                f"Loss: {log['loss']:.3f} -- "
+                f"Val Accuracy: {log['val_accuracy']:.3f}, "
+                f"Val Loss: {log['val_loss']:.3f} -- "
+                f"Batch Size: {batch_size}"
             )
 
     # <-- Training Mode -->
@@ -534,42 +564,27 @@ class Sequential(Model):
         metrics: list[float],
         val_loss: float,
         val_accuracy: float,
-        epoch: int,
     ) -> dict[str, float]:
         """
-        Update the metrics for the model.
-
-        Args:
-            losses (list): List of losses.
-            metrics (list): List of metrics.
-            val_loss (float): Validation loss.
-            val_accuracy (float): Validation accuracy.
-
-        Returns:
-            dict: Dictionary of updated metrics.
+        Update the metrics for the model and log them in the History class.
         """
-        self.losses["training"][epoch] = float(np.mean(losses))
-        self.accuracy["training"][epoch] = float(np.mean(metrics))
-        self.losses["validation"][epoch] = val_loss
-        self.accuracy["validation"][epoch] = val_accuracy
+        train_loss = float(np.mean(losses))
+        train_accuracy = float(np.mean(metrics))
+        self.history.log_epoch(
+            train_loss,
+            train_accuracy,
+            val_loss,
+            val_accuracy
+        )
 
         return {
-            "loss": self.losses["training"][epoch],
-            "accuracy": self.accuracy["training"][epoch],
+            "loss": train_loss,
+            "accuracy": train_accuracy,
             "val_loss": val_loss,
             "val_accuracy": val_accuracy,
         }
 
-    @property
-    def history(self) -> dict:
-        """
-        Return the training history of the model.
-
-        Returns:
-            dict: Dictionary of training history.
-        """
-        return {"loss": self.losses, "accuracy": self.accuracy}
-
+    # <-- Model Properties -->
     @property
     def model_output_units(self) -> int:
         """
