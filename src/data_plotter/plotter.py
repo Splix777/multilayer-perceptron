@@ -10,6 +10,7 @@ from matplotlib.axes import Axes
 import seaborn as sns
 
 from src.utils.config import Config
+from src.neural_net.history.model_history import History
 from src.utils.logger import error_logger
 
 
@@ -236,50 +237,44 @@ class Plotter:
             palette="Set2",
             ax=ax,
         )
-        ax.set_title("Boxplots of Selected Features")
+        tick_positions = range(len(features))
+        ax.set_xticks(tick_positions)
         ax.set_xticklabels(labels=features, rotation=45)
+        ax.set_title("Boxplots of Selected Features")
 
         self.save_or_show(fig=fig, output_path="boxplots.png")
 
-    # def plot_loss(self, model_name: str) -> None:
-    #     """
-    #     Plot the training and validation loss over epochs.
+    def plot_model_history(self, model_name: str, history: History) -> None:
+        """
+        Plot the training and validation metrics over epochs.
 
-    #     Returns:
-    #         None
-    #     """
-    #     plt.figure(figsize=(10, 5))
-    #     plt.plot(self.data['train_loss'], label='Training Loss')
-    #     plt.plot(self.data['val_loss'], label='Validation Loss')
-    #     plt.xlabel('Epoch')
-    #     plt.ylabel('Loss')
-    #     min_val_loss = min(self.data['val_loss'])
-    #     plt.title(
-    #         f'Training and Validation Loss for {model_name} - '
-    #         f'Min Validation Loss: {min_val_loss:.4f}'
-    #     )
-    #     plt.legend()
-    #     plt.grid(True)
-    #     plt.legend()
+        Args:
+            model_name (str): Name of the model being visualized.
+            history (History): Object containing training and validation metrics.
+            output_path (str): Path to save the plot. If not provided, the plot is displayed.
 
-    #     self.save_or_show(plot=plt, output_path=f'{model_name}_loss.png')
+        Returns:
+            None
+        """
+        data: pd.DataFrame = history.to_dataframe()
 
-    # def plot_accuracy(self, model_name: str) -> None:
-    #     """
-    #     Plot the training and validation accuracy over epochs.
+        fig, axes = plt.subplots(1, 2, figsize=(12, 5))
 
-    #     Returns:
-    #         None
-    #     """
-    #     plt.figure(figsize=(10, 5))
-    #     plt.plot(self.data['train_accuracy'], label='Training Accuracy')
-    #     plt.plot(self.data['val_accuracy'], label='Validation Accuracy')
-    #     plt.xlabel('Epoch')
-    #     plt.ylabel('Accuracy')
-    #     max_val_acc_percent = max(self.data['val_accuracy']) * 100
-    #     plt.title(f'Training and Validation Accuracy for {model_name} - '
-    #               f'Max Validation Accuracy: {max_val_acc_percent:.0f}%')
-    #     plt.legend()
-    #     plt.grid(True)
+        # Plot training and validation loss
+        axes[0].plot(data.index, data["train_loss"], label="Train Loss")
+        axes[0].plot(data.index, data["val_loss"], label="Validation Loss")
+        axes[0].set_xlabel("Epochs")
+        axes[0].set_ylabel("Loss")
+        axes[0].set_title(f"Loss Over Epochs ({model_name})")
+        axes[0].legend()
 
-    #     self.save_or_show(plot=plt, output_path=f'{model_name}_accuracy.png')
+        # Plot training and validation accuracy
+        axes[1].plot(data.index, data["train_accuracy"], label="Train Accuracy")
+        axes[1].plot(data.index, data["val_accuracy"], label="Validation Accuracy")
+        axes[1].set_xlabel("Epochs")
+        axes[1].set_ylabel("Accuracy")
+        axes[1].set_title(f"Accuracy Over Epochs ({model_name})")
+        axes[1].legend()
+
+        plt.tight_layout()
+        self.save_or_show(fig=fig, output_path=f"{model_name}_history.png")

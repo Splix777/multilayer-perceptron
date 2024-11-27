@@ -26,7 +26,6 @@ from src.neural_net.layers.input import InputLayer
 from src.neural_net.layers.dense import Dense
 from src.neural_net.layers.dropout import Dropout
 from src.neural_net.callbacks.early_stopping import EarlyStopping
-from src.neural_net.history.model_history import History
 
 
 class MultiLayerPerceptron:
@@ -51,6 +50,7 @@ class MultiLayerPerceptron:
             "data_processor", DataPreprocessor()
         )
 
+    # <--- CLI Methods --->
     def evaluate_model(
         self, model_path: Path, data_path: Path
     ) -> tuple[float, float]:
@@ -112,7 +112,9 @@ class MultiLayerPerceptron:
 
         return labeled_predictions
 
-    def train_model(self, config_path: Path, dataset_path: Path) -> Path:
+    def train_model(
+        self, config_path: Path, dataset_path: Path, plot: bool
+    ) -> Path:
         """
         Train a new model using the given dataset
         and model configuration.
@@ -135,8 +137,6 @@ class MultiLayerPerceptron:
         data: pd.DataFrame = csv_to_dataframe(file_path=dataset_path)
         labeled_df, df_col_names = self._create_df_with_labels(data=data)
 
-        # self._plot_data(data=labeled_df, labels=labels)
-
         proccessed_data: ProcessedData = self._preprocess_data(
             data=labeled_df,
             df_col_names=df_col_names,
@@ -148,12 +148,18 @@ class MultiLayerPerceptron:
         model: Sequential = self._build_model(
             validated_config=validated_config
         )
+        model.summary()
         trained_model: Sequential = self._train_new_model(
             model=model,
             proccessed_data=proccessed_data,
             validated_config=validated_config,
         )
-        # self._plot_model_history(model=trained_model, config=validated_config)
+        if plot:
+            self._plot_data(data=labeled_df, labels=df_col_names)
+            self.plotter.plot_model_history(
+                model_name=validated_config.name,
+                history=trained_model.history,
+            )
 
         saved_model_path: Path = self._save_model_to_pkl(
             model=trained_model,
@@ -165,6 +171,7 @@ class MultiLayerPerceptron:
 
         return saved_model_path
 
+    # <--- Private Methods --->
     def _create_df_with_labels(
         self, data: pd.DataFrame
     ) -> tuple[pd.DataFrame, CSVColNames]:
@@ -331,28 +338,6 @@ class MultiLayerPerceptron:
         )
 
         return model
-
-    def _plot_model_history(
-        self, model: Sequential, config: SequentialModelConfig
-    ) -> None:
-        """
-        Plot the model training history.
-
-        Args:
-            model (Sequential): Trained model.
-
-        Raises:
-            ValueError: If the model history is empty.
-
-        Returns:
-            None
-        """
-        history: History = model.history
-        model_name: str = config.name
-        if history is None:
-            raise ValueError("Model history is empty.")
-
-        history.plot(model_name=model_name)
 
     def _save_model_to_pkl(
         self,
