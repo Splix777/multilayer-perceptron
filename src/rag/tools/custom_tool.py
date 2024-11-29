@@ -7,7 +7,6 @@ from crewai_tools import CodeDocsSearchTool
 
 github_tool = GithubSearchTool(
 	github_repo="https://github.com/Splix777/multilayer-perceptron",
-	gh_token="hidden",
 	content_types=["code", "repo", "pr"],
     config=dict(
         llm=dict(
