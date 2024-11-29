@@ -18,8 +18,10 @@ docker-setup:
 	docker compose build
 
 # Start the application in Docker
+# docker compose run multilayer_perceptron /bin/bash
 docker-start:
-	docker compose run multilayer_perceptron /bin/bash
+	docker compose up -d --build
+	docker compose exec multilayer_perceptron /bin/bash
 
 # Clean up Docker (removes all images, volumes, networks, containers)
 docker-clean:

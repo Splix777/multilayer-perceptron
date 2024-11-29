@@ -1,0 +1,47 @@
+research_task:
+  description: >
+    Search the GitHub repository for detailed information about {topic}.
+    Use the provided tools to extract relevant data, focusing on accuracy and depth.
+
+  instructions: >
+    Follow these steps:
+    1. Use the `Search a github repo's content` tool.
+    2. Construct a specific and valid `search_query` string related to {topic}.
+      Example: "neural network layers in multilayer-perceptron.py".
+    3. Review the results and canfilter for relevance to the given task.
+
+  error_handling: >
+    If the tool returns an error:
+    - Confirm the `search_query` is non-empty and valid.
+    - Retry with a refined query.
+    - If the issue persists, provide a summary of your attempts and note the problem.
+
+  expected_output: >
+    - A bulleted list of key findings related to {topic}.
+    - Include relevant file names, line numbers, and brief summaries for each result.
+    - Ensure findings are specific and actionable.
+
+  agent: researcher
+
+reporting_task:
+  description: >
+    Transform the research findings into a detailed, structured markdown report.
+    Focus on clarity, organization, and depth.
+
+  instructions: >
+    1. Review the findings from the research task.
+    2. Organize the findings into sections, each covering a key topic.
+    3. Provide examples and context where necessary.
+
+  error_handling: >
+    If findings are incomplete or unclear:
+    - Summarize the gaps.
+    - Suggest specific queries or follow-ups for further research.
+
+  expected_output: >
+    A markdown-formatted report with:
+    - Clear headings for each section.
+    - Detailed explanations and examples.
+    - References to file names and line numbers where applicable.
+
+  agent: reporting_analyst

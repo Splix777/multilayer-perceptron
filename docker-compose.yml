@@ -1,4 +1,14 @@
 services:
+  ollama:
+    image: ollama/ollama
+    container_name: ollama
+    ports:
+      - "11434:11434"
+    volumes:
+      - ollama:/root/.ollama
+    networks:
+      - default
+
   multilayer_perceptron:
     image: multilayer_perceptron
     build:
@@ -7,16 +17,6 @@ services:
     container_name: multilayer_perceptron
     stdin_open: true
     tty: true
-    networks:
-      - default
-
-  ollama:
-    image: ollama/ollama
-    container_name: ollama
-    ports:
-      - "11434:11434"
-    volumes:
-      - ollama:/root/.ollama
     networks:
       - default
 

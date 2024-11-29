@@ -5,11 +5,12 @@ from rich.console import Console
 from rich.prompt import Prompt
 from rich.table import Table
 from pathlib import Path
-import ollama
 
-from mlp import MultiLayerPerceptron
-from src.utils.config import Config
-from src.utils.file_handlers import save_json_to_file
+from mlp.mlp_service import MultiLayerPerceptron
+from mlp.utils.config import Config
+from mlp.utils.file_handlers import save_json_to_file
+
+from src.rag.main import run
 
 app = typer.Typer()
 console = Console()
@@ -92,17 +93,12 @@ def evaluate_model() -> None:
 
 @app.command("rag")
 def ask_ollama() -> None:
-    console.print("[green]Ollama is the best![/green]")
-
     while True:
-        question: str = Prompt.ask("[blue]Ask Ollama a question[/blue]")
-        if question.lower() == "exit":
+        prompt: str = Prompt.ask("[blue]Ask Ollama a question[/blue]")
+        user_input: dict[str, str] = {"topic": f"{prompt}"}
+        if prompt == "exit":
             break
-        # TODO: Implement full RAG functionality (currently only stock responses)
-        response = ollama.generate(model="llama3", prompt=question)
-        print(response['response'])
-
-
+        run(user_input)
 
 
 def configure_new_model() -> str:

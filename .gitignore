@@ -3,6 +3,7 @@
 *.iml
 *.ipr
 *.log
+.env
 
 */__pycache__/
 /.pytest_cache/
