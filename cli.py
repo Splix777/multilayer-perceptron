@@ -10,7 +10,7 @@ from mlp.mlp_service import MultiLayerPerceptron
 from mlp.utils.config import Config
 from mlp.utils.file_handlers import save_json_to_file
 
-from src.rag.main import run
+# from src.rag.main import run
 
 app = typer.Typer()
 console = Console()
@@ -91,14 +91,14 @@ def evaluate_model() -> None:
         f"{loss:.4f} Loss"
     )
 
-@app.command("rag")
-def ask_ollama() -> None:
-    while True:
-        prompt: str = Prompt.ask("[blue]Ask Ollama a question[/blue]")
-        user_input: dict[str, str] = {"topic": f"{prompt}"}
-        if prompt == "exit":
-            break
-        run(user_input)
+# @app.command("rag")
+# def ask_ollama() -> None:
+#     while True:
+#         prompt: str = Prompt.ask("[blue]Ask Ollama a question or exit to quit: [/blue]")
+#         user_input: dict[str, str] = {"topic": f"{prompt}"}
+#         if prompt == "exit":
+#             break
+#         run(user_input)
 
 
 def configure_new_model() -> str:

@@ -28,7 +28,7 @@ class Logger(logging.Logger):
         self.color: str = kwargs.get("color", "green")
         self.setLevel(self.config.config.settings["log_level"])
 
-        format = (
+        log_format = (
             "%(asctime)s - %(name)s - %(levelname)s - %(message)s - "
             "File: %(filename)s"
         )
@@ -40,7 +40,7 @@ class Logger(logging.Logger):
         coloredlogs.install(
             level=self.config.config.settings["log_level"],
             logger=self,
-            fmt=format,
+            fmt=log_format,
             level_styles={
                 "info": {"color": self.color},
                 "debug": {"color": self.color},
@@ -49,7 +49,7 @@ class Logger(logging.Logger):
             },
         )
 
-        formatter = logging.Formatter(format)
+        formatter = logging.Formatter(log_format)
         handler.setFormatter(formatter)
         self.addHandler(handler)
 
@@ -80,20 +80,18 @@ class Logger(logging.Logger):
         context_message = json.dumps(context, indent=4) if context else ""
         log_message = f"{message} | Context: {context_message}"
 
-        if level.lower() == "debug":
-            self.debug(log_message)
-        elif level.lower() == "info":
-            self.info(log_message)
-        elif level.lower() == "warning":
-            self.warning(log_message)
-        elif level.lower() == "error":
-            self.error(log_message)
-        elif level.lower() == "critical":
-            self.critical(log_message)
-        else:
-            self.info(
-                log_message
-            )  # Default to info if invalid level is provided
+        # Dictionary for method lookup
+        log_methods = {
+            "debug": self.debug,
+            "info": self.info,
+            "warning": self.warning,
+            "error": self.error,
+            "critical": self.critical,
+        }
+
+        # Use the dictionary to get the method, default to self.info
+        log_method = log_methods.get(level.lower(), self.info)
+        log_method(log_message)
 
     def log_to_file(self, message: str, file_name: str) -> None:
         """Logs a message to a specific file."""

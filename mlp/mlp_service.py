@@ -1,3 +1,4 @@
+from typing import Optional
 from pathlib import Path
 
 import numpy as np
@@ -71,14 +72,13 @@ class MultiLayerPerceptron:
         processed_data: ProcessedData = self._preprocess_data(
             data=labeled_df,
             scaler=model_package.scaler,
-            df_col_names=model_package.df_col_names,
+            target_col=model_package.df_col_names.target,
             drop_columns=[model_package.df_col_names.id],
             val_split=0.0,
+            fit=False
         )
 
-        loss, acc = model_package.model.evaluate(X=processed_data.train_df)
-
-        return loss, acc
+        return model_package.model.evaluate(X=processed_data.val_df)
 
     def predict(self, model_path: Path, data_path: Path) -> list[str]:
         """
@@ -98,19 +98,18 @@ class MultiLayerPerceptron:
         processed_data: ProcessedData = self._preprocess_data(
             data=labeled_df,
             scaler=model_package.scaler,
-            df_col_names=model_package.df_col_names,
+            target_col=model_package.df_col_names.target,
             drop_columns=[model_package.df_col_names.id],
             val_split=0.0,
+            fit=False
         )
 
-        predictions = model_package.model.predict(X=processed_data.train_df)
+        predictions = model_package.model.predict(X=processed_data.val_df)
 
-        labeled_predictions = self._predictions_labels(
+        return self._predictions_labels(
             predictions=predictions,
             binary_target_map=model_package.binary_target_map,
         )
-
-        return labeled_predictions
 
     def train_model(
         self, config_path: Path, dataset_path: Path, plot: bool
@@ -139,8 +138,10 @@ class MultiLayerPerceptron:
 
         proccessed_data: ProcessedData = self._preprocess_data(
             data=labeled_df,
-            df_col_names=df_col_names,
+            target_col=df_col_names.target,
             drop_columns=[df_col_names.id],
+            val_split=0.2,
+            fit=True
         )
 
         model_config: dict = json_to_dict(file_path=config_path)
@@ -155,18 +156,20 @@ class MultiLayerPerceptron:
             validated_config=validated_config,
         )
         if plot:
+            print("Generating plots... (This may take a while)")
             self._plot_data(data=labeled_df, labels=df_col_names)
             self.plotter.plot_model_history(
                 model_name=validated_config.name,
                 history=trained_model.history,
+                save_path=self.config.plot_dir / "model_history.png",
             )
 
         saved_model_path: Path = self._save_model_to_pkl(
             model=trained_model,
             scaler=proccessed_data.scaler,
             df_col_names=df_col_names,
-            binary_target_map=proccessed_data.binary_target_map,
-            config=validated_config,
+            binary_target_map=proccessed_data.target_encoding_map,
+            config=validated_config
         )
 
         return saved_model_path
@@ -239,10 +242,11 @@ class MultiLayerPerceptron:
     def _preprocess_data(
         self,
         data: pd.DataFrame,
-        df_col_names: CSVColNames,
+        target_col: str,
         scaler: StandardScaler = StandardScaler(),
-        drop_columns: list[str] = [],
-        val_split: float = 0.2,
+        drop_columns: Optional[list[str]] = None,
+        val_split: Optional[float] = None,
+        fit: bool = True
     ) -> ProcessedData:
         """
         Preprocess the data by loading, shuffling, and scaling it.
@@ -260,12 +264,13 @@ class MultiLayerPerceptron:
             StandardScaler: Scaler used for data normalization.
             dict: Target
         """
-        return self.data_processor.load_from_df(
+        return self.data_processor.prepare_data(
             df=data,
-            target_col=df_col_names.target,
+            target_col=target_col,
             scaler=scaler,
             drop_columns=drop_columns,
             val_split=val_split,
+            fit=fit
         )
 
     def _build_model(
@@ -331,7 +336,10 @@ class MultiLayerPerceptron:
             epochs=validated_config.epochs,
             val_data=proccessed_data.val_df,
             callbacks=[
-                EarlyStopping(monitor="val_loss", patience=200, verbose=True)
+                EarlyStopping(
+                    monitor="val_loss",
+                    patience=200,
+                    verbose=True)
             ],
             batch_size=validated_config.batch_size,
             verbose=True,
@@ -428,7 +436,7 @@ if __name__ == "__main__":
         # )
 
         mlp = MultiLayerPerceptron()
-        mlp.train_model(config_path=conf_path, dataset_path=train_path)
+        mlp.train_model(config_path=conf_path, dataset_path=train_path, plot=False)
         print(mlp.predict(model_path=mpath, data_path=test_path))
         print(mlp.evaluate_model(model_path=mpath, data_path=test_path))
 

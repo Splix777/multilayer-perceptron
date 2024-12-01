@@ -1,27 +1,39 @@
 services:
-  ollama:
-    image: ollama/ollama
-    container_name: ollama
-    ports:
-      - "11434:11434"
-    volumes:
-      - ollama:/root/.ollama
-    networks:
-      - default
+  # ollama:
+  #   image: ollama/ollama
+  #   container_name: ollama
+  #   build:
+  #     context: .
+  #     dockerfile: Dockerfile.ollama
+  #   ports:
+  #     - "11434:11434"
+  #   volumes:
+  #     - ollama:/root/.ollama
+  #   networks:
+  #     - default
+  #   deploy:
+  #     resources:
+  #       reservations:
+  #         devices:
+  #           - driver: nvidia
+  #             capabilities: [gpu]
+  #             count: all
+  #   restart: on-failure
 
   multilayer_perceptron:
     image: multilayer_perceptron
+    container_name: multilayer_perceptron
     build:
       context: .
-      dockerfile: Dockerfile
-    container_name: multilayer_perceptron
+      dockerfile: Dockerfile.mlp
     stdin_open: true
     tty: true
     networks:
       - default
+    restart: on-failure
 
-volumes:
-  ollama:
+# volumes:
+#   ollama:
 
 networks:
   default:

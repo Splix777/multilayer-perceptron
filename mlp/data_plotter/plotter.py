@@ -1,11 +1,12 @@
-from typing import Generator, Tuple
+from typing import Any, Optional
 
 import pandas as pd
 from pathlib import Path
 
 import matplotlib.pyplot as plt
 from matplotlib.figure import Figure
-from matplotlib.axes import Axes
+import matplotlib.animation as animation
+from matplotlib.animation import PillowWriter
 
 import seaborn as sns
 
@@ -15,104 +16,79 @@ from mlp.utils.logger import error_logger
 
 
 class Plotter:
-    """
-    Plotter class to generate and save visualizations.
+    """Plotter class for visualizing data distributions."""
 
-    Attributes:
-        config (Config): Configuration object.
-        logger (Logger): Logger object.
-        save_dir (Path): Directory to save the plots.
-
-    Methods:    
-        __init__(**kwargs): Initialize the Plotter with the
-            given configuration.
-        __fig_generator(figsize: tuple): Generate Matplotlib Figure
-            and Axes objects.
-        save_or_show(fig: Figure, output_path: str): Save the plot
-            to the output path if a valid save directory is provided,
-            otherwise display the plot.
-        target_distribution(column: str, data: pd.DataFrame): Plot the
-            distribution of a specified column in the data.
-        correlation_heatmap(columns: list[str], data: pd.DataFrame):
-            Generate and display a correlation heatmap for
-            the data excluding specified columns.
-        pairplot(columns: list[str], hue: str, data: pd.DataFrame):
-            Generate a pairplot for selected columns
-            in the data with a specified hue.
-        boxplots(columns: list[str], hue: str, data: pd.DataFrame):
-            Generate a pairplot for selected columns
-            in the data with a specified hue.
-    """
     def __init__(self, **kwargs) -> None:
         """
-        Initialize the Plotter with the given configuration.
+        Plotter class for visualizing model training history
+        and data distributions.
 
-        Args:
-            config (Config): Configuration object.
-            logger (Logger): Logger object.
-            save_dir (Path): Directory to save the plots.
+        This class provides methods to create various plots,
+        including model training history, distribution plots,
+        correlation heatmaps, pair plots, and box plots.
+        It also handles saving or displaying the generated
+        figures based on the provided configuration.
 
-        Returns:
-            None
+        Attributes:
+            config (Config): Configuration object for the plotter.
+            save_dir (Path): Directory path where plots will be saved.
+
+        Methods:
+            save_or_show(fig: Figure, output_path: Optional[str]):
+                Saves the figure to the specified output path
+                or displays it if no path is provided.
+
+            target_distribution(column: str, data: pd.DataFrame):
+                Creates and saves a count plot showing the
+                distribution of a specified column in the data.
+
+            correlation_heatmap(columns: list[str], data: pd.DataFrame):
+                Generates and saves a heatmap representing
+                the correlation matrix of specified columns in the data.
+
+            pairplot(columns: list[str], hue: str, data: pd.DataFrame):
+                Creates and saves a pair plot for the specified
+                columns, colored by the specified hue.
+
+            boxplots(columns: list[str], hue: str, data: pd.DataFrame):
+                Generates and saves box plots for the specified
+                columns, grouped by the specified hue.
+
+            plot_model_history(model_name: str, history: History, save_path: Path):
+                Plots and saves the training and validation loss and
+                accuracy over epochs for a given model history.
         """
         self.config: Config = kwargs.get("config", Config())
         self.save_dir: Path = kwargs.get("save_dir", self.config.plot_dir)
 
-    def __fig_generator(
-        self, figsize: tuple = (8, 6)
-    ) -> Generator[Tuple[Figure, Axes], None, None]:
+    def save_or_show(self, fig: Figure, output_path: Optional[str]):
         """
-        Generate Matplotlib Figure and Axes objects.
+        Saves a figure to a specified path or displays it
+        if no path is provided.
+
+        This method checks if a valid output path is given and if the
+        save directory exists. If both conditions are met, it saves
+        the figure to the specified path; otherwise, it displays the
+        figure. In both cases, the figure is closed after the operation
+        to free up resources.
 
         Args:
-            figsize (tuple): Tuple of the figure size (width, height).
-
-        Yields:
-            Generator[Tuple[Figure, Axes], None, None]: A generator yielding Figure and Axes objects.
-        """
-        while True:
-            fig: Figure
-            ax: Axes
-
-            fig, ax = plt.subplots(figsize=figsize)
-            try:
-                yield fig, ax
-            except Exception as e:
-                error_logger.error(f"Error generating Figure and Axes: {e}")
-            finally:
-                plt.close(fig)
-
-    def save_or_show(self, fig: Figure, output_path: str = ""):
-        """
-        Save the plot to the output path if a valid save
-        directory is provided, otherwise display the plot.
-
-        Args:
-            fig (Figure): The Matplotlib Figure object.
-            output_path (str): The filename to save the plot.
-                If not provided, the plot will be displayed instead.
+            fig (Figure): The figure object to be saved or displayed.
+            output_path (Optional[str]): The path where the figure
+                should be saved. If None, the figure will be
+                displayed instead.
 
         Returns:
             None
         """
         if output_path and self.save_dir.is_dir():
             save_path: Path = self.save_dir / output_path
-
-            try:
-                save_path.parent.mkdir(parents=True, exist_ok=True)
-
-            except Exception as e:
-                error_logger.error(f"Error ensuring save directory exists: {e}")
-                plt.close(fig)
-                return
-
             try:
                 fig.savefig(save_path)
             except Exception as e:
                 error_logger.error(f"Error saving figure: {e}")
             finally:
                 plt.close(fig)
-
         else:
             try:
                 plt.show()
@@ -123,46 +99,59 @@ class Plotter:
 
     def target_distribution(self, column: str, data: pd.DataFrame):
         """
-        Plot the distribution of a specified column in the data.
+        Generates and saves a count plot showing the
+        distribution of a specified column in the data.
+
+        This method creates a count plot for the given column,
+        visualizing the frequency of each unique value. The
+        resulting figure is saved as "data_distribution.png"
+        in the specified directory.
 
         Args:
-            column (str): The column name for which the
+            column (str): The name of the column for which the
                 distribution is to be plotted.
-            data (pd.DataFrame): The data to be visualized.
+            data (pd.DataFrame): The DataFrame containing the
+                data to be visualized.
 
         Returns:
             None
         """
-        fig, ax = next(self.__fig_generator(figsize=(8, 6)))
-
+        fig, ax = plt.subplots(figsize=(8, 6))
         sns.countplot(
-            x=column, data=data, hue=column, palette="Set2", legend=True, ax=ax
+            data=data, x=column, hue=column, palette="Set2", legend=True, ax=ax
         )
         ax.set_title("Distribution of Diagnosis")
         ax.set_xlabel("Diagnosis")
         ax.set_ylabel("Count")
-
         self.save_or_show(fig=fig, output_path="data_distribution.png")
 
     def correlation_heatmap(self, columns: list[str], data: pd.DataFrame):
         """
-        Generate and display a correlation heatmap for
-        the data excluding specified columns.
+        Generates and saves a heatmap representing the
+        correlation matrix of specified columns in the data.
+
+        This method calculates the correlation matrix for the
+        given columns and visualizes it as a heatmap. The resulting
+        figure is saved as "correlation_heatmap.png" in the
+        specified directory.
 
         Args:
-            columns (list): List of column names to correlate.
-            data (pd.DataFrame): The data to be visualized.
+            columns (list[str]): A list of column names for which
+                the correlation matrix is to be computed.
+            data (pd.DataFrame): The DataFrame containing the
+                data to be analyzed.
 
         Returns:
             None
         """
         try:
             corr_matrix: pd.DataFrame = data[columns].corr()
+
         except Exception as e:
             error_logger.error(f"Error generating correlation matrix: {e}")
             return
 
-        fig, ax = next(self.__fig_generator(figsize=(16, 18)))
+        fig, ax = plt.subplots(figsize=(16, 18))
         sns.heatmap(
             corr_matrix,
             annot=True,
@@ -173,53 +162,37 @@ class Plotter:
             ax=ax,
         )
         ax.set_title(
-            label="Correlation Heatmap",
-            fontdict={"fontsize": 24},
-            pad=20,
+            label="Correlation Heatmap", fontdict={"fontsize": 24}, pad=20
         )
-        ax.set_xticklabels(
-            labels=corr_matrix.columns,
-            rotation=45,
-        )
+        ax.set_xticklabels(labels=corr_matrix.columns, rotation=45)
         self.save_or_show(fig=fig, output_path="correlation_heatmap.png")
 
     def pairplot(self, columns: list[str], hue: str, data: pd.DataFrame):
-        """
-        Generate a pairplot for selected columns
-        in the data with a specified hue.
-
-        Args:
-            columns (list): List of column names
-                to include in the pairplot.
-            hue (str): Column name to use for coloring the plot.
-            data (pd.DataFrame): The data to be visualized.
-
-        Returns:
-            None
-        """
         grid: sns.PairGrid = sns.pairplot(
-            data[columns],
-            hue=hue,
-            palette="Set2",
+            data[columns], hue=hue, palette="Set2"
         )
         grid.figure.suptitle("Pairplot of Selected Features", y=1.02)
         self.save_or_show(fig=grid.figure, output_path="pairplot.png")
 
     def boxplots(self, columns: list[str], hue: str, data: pd.DataFrame):
         """
-        Generate a pairplot for selected columns
-        in the data with a specified hue.
+        Generates and saves box plots for specified features,
+        grouped by a specified hue.
+
+        This method creates box plots to visualize the distribution
+        of values for the given features, with the data segmented
+        by the specified hue. The resulting figure is saved as
+        "boxplots.png" in the specified directory.
 
         Args:
-            columns (list): List of column names
-                to include in the pairplot.
-            hue (str): Column name to use for coloring the plot.
-            data (pd.DataFrame): The data to be visualized.
+            columns (list[str]): A list of feature names to be plotted.
+            hue (str): The name of the column used to group the data in the box plots.
+            data (pd.DataFrame): The DataFrame containing the data to be visualized.
 
         Returns:
             None
         """
-        fig, ax = next(self.__fig_generator(figsize=(24, 16)))
+        fig, ax = plt.subplots(figsize=(24, 16))
 
         features: list[str] = columns
         data_melted: pd.DataFrame = pd.melt(
@@ -228,7 +201,6 @@ class Plotter:
             var_name="feature",
             value_name="value",
         )
-
         sns.boxplot(
             x="feature",
             y="value",
@@ -241,40 +213,107 @@ class Plotter:
         ax.set_xticks(tick_positions)
         ax.set_xticklabels(labels=features, rotation=45)
         ax.set_title("Boxplots of Selected Features")
-
         self.save_or_show(fig=fig, output_path="boxplots.png")
 
-    def plot_model_history(self, model_name: str, history: History) -> None:
+    def plot_model_history(
+        self, model_name: str, history: History, save_path: Path
+    ):
         """
-        Plot the training and validation metrics over epochs.
+        Plots and saves the training and validation loss
+        and accuracy over epochs for a given model history.
+
+        This method converts the model training history into a
+        DataFrame and generates animated plots for both loss
+        and accuracy metrics. The resulting animation is saved
+        to the specified path.
 
         Args:
-            model_name (str): Name of the model being visualized.
-            history (History): Object containing training and validation metrics.
-            output_path (str): Path to save the plot. If not provided, the plot is displayed.
+            model_name (str): The name of the model being
+                evaluated, used in the plot titles.
+            history (History): An object containing
+                the training history data.
+            save_path (Path): The path where the animation
+                will be saved.
 
         Returns:
             None
         """
+        # Convert history to a DataFrame
         data: pd.DataFrame = history.to_dataframe()
+        epochs = range(1, len(data) + 1)
+        train_loss = data["train_loss"].values
+        val_loss = data["val_loss"].values
+        train_accuracy = data["train_accuracy"].values
+        val_accuracy = data["val_accuracy"].values
 
+        # Create figure and axes
         fig, axes = plt.subplots(1, 2, figsize=(12, 5))
 
-        # Plot training and validation loss
-        axes[0].plot(data.index, data["train_loss"], label="Train Loss")
-        axes[0].plot(data.index, data["val_loss"], label="Validation Loss")
+        # Precompute plot limits
+        max_loss = max(max(train_loss), max(val_loss)) * 1.1
+
+        # Loss Plot
+        (train_loss_line,) = axes[0].plot(
+            [], [], label="Train Loss: N/A", color="blue"
+        )
+        (val_loss_line,) = axes[0].plot(
+            [], [], label="Validation Loss: N/A", color="orange"
+        )
+        axes[0].set_xlim(0, len(epochs))
+        axes[0].set_ylim(0, max_loss)
         axes[0].set_xlabel("Epochs")
         axes[0].set_ylabel("Loss")
         axes[0].set_title(f"Loss Over Epochs ({model_name})")
-        axes[0].legend()
+        loss_legend = axes[0].legend()
 
-        # Plot training and validation accuracy
-        axes[1].plot(data.index, data["train_accuracy"], label="Train Accuracy")
-        axes[1].plot(data.index, data["val_accuracy"], label="Validation Accuracy")
+        # Accuracy Plot
+        (train_acc_line,) = axes[1].plot(
+            [], [], label="Train Accuracy: N/A", color="blue"
+        )
+        (val_acc_line,) = axes[1].plot(
+            [], [], label="Validation Accuracy: N/A", color="orange"
+        )
+        axes[1].set_xlim(0, len(epochs))
+        axes[1].set_ylim(0, 1.1)
         axes[1].set_xlabel("Epochs")
         axes[1].set_ylabel("Accuracy")
         axes[1].set_title(f"Accuracy Over Epochs ({model_name})")
-        axes[1].legend()
+        acc_legend = axes[1].legend()
 
-        plt.tight_layout()
-        self.save_or_show(fig=fig, output_path=f"{model_name}_history.png")
+        # Update function for animation
+        def update(frame) -> Any:
+            if frame < len(epochs):
+                train_loss_line.set_data(epochs[:frame], train_loss[:frame])
+                val_loss_line.set_data(epochs[:frame], val_loss[:frame])
+                train_acc_line.set_data(epochs[:frame], train_accuracy[:frame])
+                val_acc_line.set_data(epochs[:frame], val_accuracy[:frame])
+
+                # Update loss legend only if values change significantly
+                if frame > 0:
+                    loss_legend.texts[0].set_text(
+                        f"Train Loss: {train_loss[frame-1]:.4f}"
+                    )
+                    loss_legend.texts[1].set_text(
+                        f"Validation Loss: {val_loss[frame-1]:.4f}"
+                    )
+
+                    acc_legend.texts[0].set_text(
+                        f"Train Accuracy: {train_accuracy[frame-1]:.4f}"
+                    )
+                    acc_legend.texts[1].set_text(
+                        f"Validation Accuracy: {val_accuracy[frame-1]:.4f}"
+                    )
+
+            return train_loss_line, val_loss_line, train_acc_line, val_acc_line
+
+        # Add pause frames to the animation to 'pause' at the end
+        pause_frames = 240
+        total_frames = len(epochs) + pause_frames
+
+        # Create animation
+        ani = animation.FuncAnimation(
+            fig=fig, func=update, frames=total_frames, interval=200, blit=True
+        )
+
+        # Save or show animation
+        ani.save(save_path, writer=PillowWriter(fps=24))

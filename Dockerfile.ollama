@@ -1,0 +1,16 @@
+FROM ollama/ollama
+
+# Set the working directory
+WORKDIR /app
+
+# Copy the initialization script
+COPY init.sh /app/init.sh
+
+# Give permissions to the script
+RUN chmod +x /app/init.sh
+
+# Override the entrypoint to allow custom commands
+ENTRYPOINT []
+
+# Use a shell to run the script
+CMD ["/bin/sh", "/app/init.sh"]

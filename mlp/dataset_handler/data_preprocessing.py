@@ -1,90 +1,99 @@
+from typing import Optional
 import pandas as pd
 
 from sklearn.model_selection import train_test_split
 from sklearn.preprocessing import LabelEncoder, StandardScaler
 
-from mlp.utils.decorators import error_handler
 from mlp.schemas.processed_data import ProcessedData
 
+
 class DataPreprocessor:
-    """
-    DataPreprocessor class to preprocess the data
-    before training the model.
+    """DataPreprocessor class to preprocess the data."""
 
-    Attributes:
-        label_encoder (LabelEncoder): Encoder for the labels.
-        logger (Logger): Logger to log messages.
-
-    Methods:
-        load_from_df: Load a dataset from a CSV file,
-            preprocess labels, and split it into training
-            and validation sets.
-        fit_transform: Fit and transform the DataFrame.
-        transform: Transform the DataFrame.
-        inv_transform: Inverse transforms the DataFrame.
-    """
-    def __init__(self) -> None:
+    def __init__(self, **kwargs) -> None:
         """
-        Initialize the DataLoader with the given scaler.
-        """
-        self.label_encoder: LabelEncoder = LabelEncoder()
+        Initializes the DataPreprocessor class with
+        an optional LabelEncoder.
 
-    @error_handler(exceptions_to_handle=(ValueError, KeyError))
-    def load_from_df(
+        This constructor allows for the initialization
+        of a LabelEncoder instance, which is used to
+        transform categorical labels into numerical values.
+        If a custom label encoder is provided through keyword
+        arguments, it will be used; otherwise, a new instance
+        of LabelEncoder will be created.
+
+        Args:
+            **kwargs: Optional keyword arguments that can include a custom label_encoder.
+
+        Returns:
+            None
+        """
+        self.label_encoder: LabelEncoder = kwargs.get(
+            "label_encoder", LabelEncoder()
+        )
+
+    def prepare_data(
         self,
         df: pd.DataFrame,
         target_col: str,
         scaler: StandardScaler,
         shuffle: bool = True,
         seed: int = 42,
-        drop_columns: list[str] = [],
-        val_split: float = 0.2,
+        drop_columns: Optional[list[str]] = None,
+        val_split: Optional[float] = None,
+        fit: bool = True,
     ) -> ProcessedData:
         """
-        Load a dataset from a DataFrame, preprocess labels,
-        and split it into training and validation sets.
+        Process the dataset for training, evaluation, or prediction.
 
         Args:
-            df (pd.DataFrame): DataFrame to load.
-            target_col (str): Column name of the target labels.
-            scaler (StandardScaler): Scaler for standardizing data.
-            shuffle (bool): Whether to shuffle the data. Default is True.
-            seed (int): Random seed for reproducibility. Default is 42.
-            drop_columns (list): Columns to drop from the DataFrame.
-            val_split (float): Proportion of the data for validation. Default is 0.2.
+            df (pd.DataFrame): Input DataFrame.
+            target_col (str): Name of the target column.
+            scaler (Optional[StandardScaler]): Scaler for standardization.
+                If None, a new scaler will be created.
+            shuffle (bool): Whether to shuffle the data before splitting.
+            seed (int): Random seed for reproducibility.
+            drop_columns (Optional[list[str]]): Columns to drop from the dataset.
+            val_split (Optional[float]): Fraction of data to use for validation.
+            fit (bool): Whether to fit the scaler (True for training,
+                False for evaluation/prediction).
 
         Returns:
-            ProcessedData: Object containing train/validation data, scaler, and labels.
+            ProcessedData: Object containing train, validation, and scaler details.
         """
         if drop_columns:
             df = df.drop(columns=drop_columns)
 
-        # Encode target column
-        df, binary_target_map = self._encode_target_column(df, target_col)
+        df, target_encoding_map = self._encode_target_column(df, target_col)
 
-        # Standardize entire dataset if no validation split
-        if val_split == 0:
-            df = self._scale_dataframe(df, target_col, scaler, fit=False)
-            return ProcessedData(
-                train_df=df,
-                val_df=pd.DataFrame(),
-                scaler=scaler,
-                binary_target_map=binary_target_map,
-            )
+        if fit:
+            if val_split is None or val_split >= 1:
+                raise ValueError("Invalid validation split fraction.")
+            if val_split > 0:
+                train_df, val_df = train_test_split(
+                    df, test_size=val_split, shuffle=shuffle, random_state=seed
+                )
+                train_df = self.scale_dataframe(
+                    train_df, target_col, scaler, fit=True
+                )
+                val_df = self.scale_dataframe(
+                    val_df, target_col, scaler, fit=False
+                )
+            else:
+                train_df = self.scale_dataframe(
+                    df, target_col, scaler, fit=True
+                )
+                val_df = pd.DataFrame()
 
-        train_df, val_df = train_test_split(
-            df, test_size=val_split, shuffle=shuffle, random_state=seed
-        )
-
-        # Standardize train and validation sets. Scale them separately to avoid data leakage.
-        train_df = self._scale_dataframe(train_df, target_col, scaler, fit=True)
-        val_df = self._scale_dataframe(val_df, target_col, scaler, fit=False)
+        else:
+            train_df = pd.DataFrame()
+            val_df = self.scale_dataframe(df, target_col, scaler, fit=False)
 
         return ProcessedData(
             train_df=train_df,
             val_df=val_df,
             scaler=scaler,
-            binary_target_map=binary_target_map,
+            target_encoding_map=target_encoding_map,
         )
 
     def _encode_target_column(
@@ -101,13 +110,17 @@ class DataPreprocessor:
             tuple: Updated DataFrame and label mapping dictionary.
         """
         df[target_col] = self.label_encoder.fit_transform(df[target_col])
-        labels = {
+        labels: dict[str, int] = {
             label: idx for idx, label in enumerate(self.label_encoder.classes_)
         }
         return df, labels
 
-    def _scale_dataframe(
-        self, df: pd.DataFrame, target_col: str, scaler: StandardScaler, fit: bool
+    def scale_dataframe(
+        self,
+        df: pd.DataFrame,
+        target_col: str,
+        scaler: StandardScaler,
+        fit: bool,
     ) -> pd.DataFrame:
         """
         Scale the DataFrame.
@@ -126,7 +139,7 @@ class DataPreprocessor:
             scaled_features = scaler.fit_transform(features)
         else:
             scaled_features = scaler.transform(features)
-        
+
         scaled_df = pd.DataFrame(
             scaled_features, columns=features.columns, index=df.index
         )

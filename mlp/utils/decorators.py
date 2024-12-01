@@ -2,10 +2,8 @@ import time
 from typing import Callable, Tuple, Type, Any
 from json import JSONDecodeError
 from functools import wraps
-from .logger import Logger
+from .logger import error_logger, info_logger
 
-# Logger setup
-logger: Logger = Logger("decorators")
 
 # List of exceptions to handle
 KNOWN_EXCEPTIONS: Tuple[Type[Exception], ...] = (
@@ -42,7 +40,7 @@ def error_handler(
                     f"{type(e).__name__} in {method.__qualname__} "
                     f"({method.__module__}): {e}"
                 )
-                logger.error(msg, exc_info=True)
+                error_logger.error(msg, exc_info=True)
                 if not suppress:
                     raise e
 
@@ -51,7 +49,7 @@ def error_handler(
                     f"Unexpected error in {method.__qualname__} "
                     f"({method.__module__}): {e}"
                 )
-                logger.error(msg, exc_info=True)
+                error_logger.error(msg, exc_info=True)
                 raise e
 
         return wrapper
@@ -71,7 +69,7 @@ def timeit(method: Callable[..., Any]) -> Callable[..., Any]:
         end_time: float = time.time()
         duration: float = end_time - start_time
         log_message: str = f"{method.__qualname__} took {duration:.4f} seconds"
-        logger.info(log_message)
+        info_logger.info(log_message)
         return result
 
     return wrapper

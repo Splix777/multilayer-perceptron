@@ -71,7 +71,7 @@ def open_file(
         raise
     except Exception as e:
         error_logger.error(f"Unexpected error: {e}")
-        raise OSError(f"Error opening file {file_path} in mode {mode}: {e}")
+        raise
 
 
 def save_json_to_file(data: dict, file_path: Path, **kwargs: Any) -> None:
@@ -88,11 +88,12 @@ def save_json_to_file(data: dict, file_path: Path, **kwargs: Any) -> None:
         ValueError: If saving the JSON file fails.
     """
     try:
-        with open(file_path, "w") as json_file:
+        with open(file_path, mode="w") as json_file:
             json.dump(data, json_file, **kwargs)
+
     except Exception as e:
         error_logger.error(f"Error saving JSON to file: {e}")
-        raise ValueError(f"Error saving JSON to file {file_path}: {e}")
+        raise OSError(f"Error saving JSON to file {file_path}: {e}") from e
 
 
 def csv_to_dataframe(file_path: Path, **kwargs: Any) -> pd.DataFrame:
@@ -111,9 +112,10 @@ def csv_to_dataframe(file_path: Path, **kwargs: Any) -> pd.DataFrame:
         raise FileNotFoundError(f"File {file_path} does not exist.")
 
     try:
-        df = pd.read_csv(file_path, **kwargs)
+        df: pd.DataFrame = pd.read_csv(file_path, **kwargs)
         if df.empty:
             raise ValueError(f"CSV file {file_path} is empty.")
+
     except (EmptyDataError, ValueError) as e:
         error_logger.error(f"Error reading CSV: {e}")
         raise
@@ -138,6 +140,7 @@ def dataframe_to_csv(df: pd.DataFrame, file_path: Path, **kwargs: Any):
 
     try:
         df.to_csv(file_path, **kwargs)
+
     except Exception as e:
         error_logger.error(f"Error writing DataFrame to CSV: {e}")
         raise
@@ -163,10 +166,10 @@ def json_to_dict(file_path: Path, **kwargs: Any) -> dict:
             return json.load(json_file, **kwargs)
     except JSONDecodeError as e:
         error_logger.error(f"JSON Decode error: {e}")
-        raise ValueError(f"Error reading JSON file {file_path}: {e}")
+        raise ValueError(f"Error reading JSON file {file_path}: {e}") from e
     except Exception as e:
         error_logger.error(f"Unexpected error: {e}")
-        raise ValueError(f"Error: {file_path}: {e}")
+        raise
 
 
 def pickle_to_file(obj: Any, file_path: Path) -> None:
@@ -183,12 +186,15 @@ def pickle_to_file(obj: Any, file_path: Path) -> None:
     try:
         with open(file_path, "wb") as pkl_file:
             pickle.dump(obj, pkl_file)
+
     except pickle.PickleError as e:
         error_logger.error(f"Pickle error: {e}")
-        raise ValueError(f"Error pickling object to file {file_path}: {e}")
+        raise ValueError(
+            f"Error pickling object to file {file_path}: {e}"
+        ) from e
     except Exception as e:
         error_logger.error(f"Unexpected error: {e}")
-        raise ValueError(f"Error pickling object: {e}")
+        raise
 
 
 def file_to_pickle(file_path: Path) -> Any:
@@ -210,12 +216,15 @@ def file_to_pickle(file_path: Path) -> Any:
     try:
         with open(file_path, "rb") as pkl_file:
             return pickle.load(pkl_file)
+
     except pickle.PickleError as e:
         error_logger.error(f"Pickle error: {e}")
-        raise ValueError(f"Error unpickling object from file {file_path}:{e}")
+        raise ValueError(
+            f"Error unpickling object from file {file_path}:{e}"
+        ) from e
     except Exception as e:
         error_logger.error(f"Unexpected error: {e}")
-        raise ValueError(f"Error unpickling object: {e}")
+        raise
 
 
 if __name__ == "__main__":
