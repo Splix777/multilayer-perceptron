@@ -1,15 +1,20 @@
-from typing import Optional
-import json
+from typing import Literal
+
 import logging
 import coloredlogs
-
+import json
 from pathlib import Path
+from typing import Optional
 from mlp.utils.config import Config
 
 
 class Logger(logging.Logger):
     def __init__(
-        self, name=__name__, config: Config = Config(), **kwargs
+        self,
+        name: str =__name__,
+        config: Config = Config(),
+        color: Literal["red", "green", "yellow", "cyan", "white"] = "green",
+        **kwargs
     ) -> None:
         """
         Initializes the logger object.
@@ -25,7 +30,7 @@ class Logger(logging.Logger):
         """
         super().__init__(name)
         self.config: Config = config
-        self.color: str = kwargs.get("color", "green")
+        self.color: str = color
         self.setLevel(self.config.config.settings["log_level"])
 
         log_format = (
@@ -33,10 +38,16 @@ class Logger(logging.Logger):
             "File: %(filename)s"
         )
 
+        # File handler
         log_file: Path = self.config.logs_dir / f"{name}.log"
-        handler = logging.FileHandler(log_file, mode="w")
-        handler.setLevel(self.config.config.settings["log_level"])
+        file_handler = logging.FileHandler(log_file, mode="w")
+        file_handler.setLevel(self.config.config.settings["log_level"])
+        file_formatter = logging.Formatter(log_format)
+        file_handler.setFormatter(file_formatter)
+        self.addHandler(file_handler)
 
+        # Stream handler with colors
+        stream_handler = logging.StreamHandler()
         coloredlogs.install(
             level=self.config.config.settings["log_level"],
             logger=self,
@@ -47,11 +58,9 @@ class Logger(logging.Logger):
                 "error": {"color": self.color},
                 "warning": {"color": self.color},
             },
+            stream=stream_handler.stream,
         )
-
-        formatter = logging.Formatter(log_format)
-        handler.setFormatter(formatter)
-        self.addHandler(handler)
+        self.addHandler(stream_handler)
 
     def __call__(self) -> logging.Logger:
         """Returns the logger object."""
@@ -108,12 +117,9 @@ warning_logger: Logger = Logger("warning_logger", color="yellow")
 
 # Example usage
 if __name__ == "__main__":
-    error_logger: Logger = Logger("example_logger")
-    error_logger.info("This is an info message.")
+    info_logger.info("This is an info message.")
     error_logger.error("This is an error message.")
-    error_logger.warning("This is a warning message.")
-
-    error_logger.log_config()
+    warning_logger.warning("This is a warning message.")
 
     # Example of using log_with_context
     context_data: dict[str, str] = {"user": "john_doe", "action": "login"}
