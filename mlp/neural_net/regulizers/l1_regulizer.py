@@ -1,10 +1,8 @@
 import numpy as np
 from numpy.typing import NDArray
 
-from mlp.neural_net.regulizers.regulizer import Regularizer
 
-
-class L1Regularizer(Regularizer):
+class L1Regularizer:
     """
     L1 regularization penalizes the absolute magnitude of weights.
 

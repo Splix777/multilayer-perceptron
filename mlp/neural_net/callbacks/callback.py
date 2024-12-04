@@ -1,8 +1,8 @@
-from abc import ABC, abstractmethod
+from typing import Protocol, runtime_checkable
 
 
-class Callback(ABC):
-    @abstractmethod
+@runtime_checkable
+class Callback(Protocol):
     def set_model(self, model) -> None:
         """
         Set the model for the callback.
@@ -13,10 +13,9 @@ class Callback(ABC):
         Returns:
             None
         """
-        pass
+        ...
 
-    @abstractmethod
-    def on_epoch_start(self, epoch: int, logs: dict = None) -> None:
+    def on_epoch_start(self, epoch: int, logs: dict) -> None:
         """
         Called at the start of an epoch.
 
@@ -27,10 +26,9 @@ class Callback(ABC):
         Returns:
             None
         """
-        pass
+        ...
 
-    @abstractmethod
-    def on_epoch_end(self, epoch: int, logs: dict = None) -> None:
+    def on_epoch_end(self, epoch: int, logs: dict) -> None:
         """
         Called at the end of an epoch.
 
@@ -41,10 +39,9 @@ class Callback(ABC):
         Returns:
             None
         """
-        pass
+        ...
 
-    @abstractmethod
-    def on_train_begin(self, logs: dict = None) -> None:
+    def on_train_begin(self) -> None:
         """
         Called at the start of training.
 
@@ -54,10 +51,9 @@ class Callback(ABC):
         Returns:
             None
         """
-        pass
+        ...
 
-    @abstractmethod
-    def on_train_end(self, logs: dict = None) -> None:
+    def on_train_end(self) -> None:
         """
         Called at the end of training.
 
@@ -67,4 +63,4 @@ class Callback(ABC):
         Returns:
             None
         """
-        pass
+        ...

@@ -65,17 +65,16 @@ class SequentialModelConfig(BaseModel):
     optimizer: OptimizerConfig
     loss: Literal[
         "binary_crossentropy",
-        "categorical_crossentropy",
-        "mean_squared_error"
+        "categorical_crossentropy"
     ]
     batch_size: int = Field(
-        ..., 
+        ...,
         gt=0,
         description="Batch size must be greater than 0."
     )
     epochs: int = Field(
         ...,
-        gt=0, 
+        gt=0,
         description="Number of epochs must be greater than 0."
     )
 
@@ -95,6 +94,6 @@ class SequentialModelConfig(BaseModel):
                 values.layers[i - 1].type == "dropout"
                 and values.layers[i].type == "dropout"
             ):
-                raise ValueError("Consecutive dropout layers are not allowed.")
+                raise ValueError("Consecutive dropout layers not allowed.")
 
         return values

@@ -3,6 +3,7 @@ from typing import Protocol, runtime_checkable
 import numpy as np
 from numpy.typing import NDArray
 
+
 @runtime_checkable
 class Optimizer(Protocol):
     learning_rate: float

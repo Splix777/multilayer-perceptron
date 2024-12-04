@@ -69,7 +69,9 @@ class Dropout:
             np.ndarray: Output tensor.
         """
         if self.train_mode:
-            self.mask: NDArray[np.long] = np.random.binomial(1, 1 - self.rate, size=inputs.shape)
+            self.mask: NDArray[np.int64] = np.random.binomial(
+                1, 1 - self.rate, size=inputs.shape
+            )
             return inputs * self.mask / (1 - self.rate)
 
         return inputs
@@ -109,7 +111,9 @@ class Dropout:
         """
         return self.weights, self.bias
 
-    def set_weights(self, weights: NDArray[np.float64], bias: NDArray[np.float64]) -> None:
+    def set_weights(
+        self, weights: NDArray[np.float64], bias: NDArray[np.float64]
+    ) -> None:
         """
         Set the weights and biases of the layer.
 

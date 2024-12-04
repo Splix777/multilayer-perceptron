@@ -19,8 +19,9 @@ class EarlyStopping(Callback):
         self.wait = 0
         self.stopped_epoch = 0
         self.best_epoch = 0
-        self.best_weights: list[tuple[NDArray[np.float64], NDArray[np.float64]]]
-
+        self.best_weights: list[
+            tuple[NDArray[np.float64], NDArray[np.float64]]
+            ]
 
     def set_model(self, model) -> None:
         """
@@ -34,7 +35,7 @@ class EarlyStopping(Callback):
         """
         self.model: Sequential = model
 
-    def on_epoch_start(self, epoch: int, logs: dict = None) -> None:
+    def on_epoch_start(self, epoch: int, logs: dict) -> None:
         """
         Called at the start of an epoch.
 
@@ -47,7 +48,7 @@ class EarlyStopping(Callback):
         """
         pass
 
-    def on_epoch_end(self, epoch: int, logs: dict = None) -> None:
+    def on_epoch_end(self, epoch: int, logs: dict) -> None:
         """
         Called at the end of an epoch.
 
@@ -83,7 +84,7 @@ class EarlyStopping(Callback):
                 if self.verbose:
                     print(f"Early stopping at epoch {epoch + 1}")
 
-    def on_train_begin(self, logs: dict = None) -> None:
+    def on_train_begin(self) -> None:
         """
         Called at the start of training.
 
@@ -93,12 +94,12 @@ class EarlyStopping(Callback):
         Returns:
             None
         """
-        self.best = np.inf
+        self.best: float = np.inf
         self.wait = 0
         self.stopped_epoch = 0
-        self.best_weights = None
+        self.best_weights = []
 
-    def on_train_end(self, logs: dict = None) -> None:
+    def on_train_end(self) -> None:
         """
         Called at the end of training.
 

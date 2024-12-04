@@ -41,8 +41,12 @@ class RMSpropOptimizer:
         useful when dealing with sparse gradients or non-stationary
         objectives.
     """
-
-    def __init__(self, rho: float = 0.9, epsilon: float = 1e-8, learning_rate: float = 0.001):
+    def __init__(
+        self,
+        rho: float = 0.9,
+        epsilon: float = 1e-8,
+        learning_rate: float = 0.001,
+    ):
         self.learning_rate: float = learning_rate
         self.rho: float = rho
         self.epsilon: float = epsilon
@@ -86,19 +90,27 @@ class RMSpropOptimizer:
         if self.accumulated_weights.size == 0:
             self.initialize_accumulators(weights.shape, bias.shape)
 
-        self.accumulated_weights = self.rho * self.accumulated_weights + (
-            1 - self.rho
-        ) * (weights_gradient**2)
-        self.accumulated_bias = self.rho * self.accumulated_bias + (
-            1 - self.rho
-        ) * (bias_gradients**2)
+        self.accumulated_weights = (
+            self.rho
+            * self.accumulated_weights
+            + (1 - self.rho)
+            * (weights_gradient**2))
+        self.accumulated_bias = (
+            self.rho
+            * self.accumulated_bias
+            + (1 - self.rho)
+            * (bias_gradients**2))
 
-        updated_weight = weights - self.learning_rate * weights_gradient / (
-            np.sqrt(self.accumulated_weights) + self.epsilon
-        )
-        updated_bias = bias - self.learning_rate * bias_gradients / (
-            np.sqrt(self.accumulated_bias) + self.epsilon
-        )
+        updated_weight = (
+            weights
+            - self.learning_rate
+            * weights_gradient
+            / (np.sqrt(self.accumulated_weights) + self.epsilon))
+        updated_bias = (
+            bias
+            - self.learning_rate
+            * bias_gradients
+            / (np.sqrt(self.accumulated_bias) + self.epsilon))
 
         return updated_weight, updated_bias
 

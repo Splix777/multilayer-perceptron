@@ -23,7 +23,8 @@ class DataPreprocessor:
         of LabelEncoder will be created.
 
         Args:
-            **kwargs: Optional keyword arguments that can include a custom label_encoder.
+            **kwargs: Optional keyword arguments that can
+                include a custom label_encoder.
 
         Returns:
             None
@@ -53,13 +54,16 @@ class DataPreprocessor:
                 If None, a new scaler will be created.
             shuffle (bool): Whether to shuffle the data before splitting.
             seed (int): Random seed for reproducibility.
-            drop_columns (Optional[list[str]]): Columns to drop from the dataset.
-            val_split (Optional[float]): Fraction of data to use for validation.
+            drop_columns (Optional[list[str]]): Columns to drop
+                from the dataset.
+            val_split (Optional[float]): Fraction of data to use
+                for validation.
             fit (bool): Whether to fit the scaler (True for training,
                 False for evaluation/prediction).
 
         Returns:
-            ProcessedData: Object containing train, validation, and scaler details.
+            ProcessedData: Object containing train, validation,
+                and scaler details.
         """
         if drop_columns:
             df = df.drop(columns=drop_columns)

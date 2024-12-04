@@ -123,7 +123,9 @@ class InputLayer:
         """
         return self.weights, self.bias
 
-    def set_weights(self, weights: NDArray[np.float64], bias: NDArray[np.float64]) -> None:
+    def set_weights(
+        self, weights: NDArray[np.float64], bias: NDArray[np.float64]
+    ):
         """
         Set the weights and biases of the layer.
         InputLayer has no weight, so it does nothing.

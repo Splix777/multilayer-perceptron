@@ -1,8 +1,10 @@
 import json
 import pickle
+
+from pathlib import Path
 from typing import IO, Any
 from json.decoder import JSONDecodeError
-from pathlib import Path
+
 import pandas as pd
 from pandas.errors import EmptyDataError
 
@@ -74,7 +76,7 @@ def open_file(
         raise
 
 
-def save_json_to_file(data: dict, file_path: Path, **kwargs: Any) -> None:
+def save_json_to_file(data: dict, file_path: Path, **kwargs: Any):
     """
     Save a dictionary to a JSON file.
 
@@ -85,7 +87,7 @@ def save_json_to_file(data: dict, file_path: Path, **kwargs: Any) -> None:
             to pass to json.dump.
 
     Raises:
-        ValueError: If saving the JSON file fails.
+        OSError: If an error occurs while saving the JSON file.
     """
     try:
         with open(file_path, mode="w") as json_file:
@@ -107,6 +109,12 @@ def csv_to_dataframe(file_path: Path, **kwargs: Any) -> pd.DataFrame:
 
     Returns:
         pd.DataFrame: DataFrame containing the CSV data.
+
+    Raises:
+        EmptyDataError: If the CSV file is empty.
+        ValueError: If the CSV file is empty.
+        FileNotFoundError: If the file does not exist.
+        Exception: If an unexpected error occurs.
     """
     if not file_path.exists():
         raise FileNotFoundError(f"File {file_path} does not exist.")
@@ -116,11 +124,11 @@ def csv_to_dataframe(file_path: Path, **kwargs: Any) -> pd.DataFrame:
         if df.empty:
             raise ValueError(f"CSV file {file_path} is empty.")
 
-    except (EmptyDataError, ValueError) as e:
+    except (EmptyDataError, ValueError, FileNotFoundError) as e:
         error_logger.error(f"Error reading CSV: {e}")
         raise
     except Exception as e:
-        error_logger.error(f"Error reading CSV file {file_path}: {e}")
+        error_logger.error(f"Unexpected error: {e}")
         raise
     return df
 
@@ -134,6 +142,11 @@ def dataframe_to_csv(df: pd.DataFrame, file_path: Path, **kwargs: Any):
         file_path (Path): Path to the CSV file to write.
         **kwargs (Any): Additional keyword arguments to pass
             to pandas.DataFrame.to_csv.
+
+    Raises:
+        ValueError: If the DataFrame is None or empty.
+        FileNotFoundError: If the file does not exist.
+        Exception: If an unexpected error occurs.
     """
     if df is None or df.empty:
         raise ValueError("DataFrame cannot be None or empty.")
@@ -141,8 +154,11 @@ def dataframe_to_csv(df: pd.DataFrame, file_path: Path, **kwargs: Any):
     try:
         df.to_csv(file_path, **kwargs)
 
+    except (ValueError, FileNotFoundError) as e:
+        error_logger.error(f"Error writing CSV: {e}")
+        raise
     except Exception as e:
-        error_logger.error(f"Error writing DataFrame to CSV: {e}")
+        error_logger.error(f"Unexpected error: {e}")
         raise
 
 
@@ -157,6 +173,11 @@ def json_to_dict(file_path: Path, **kwargs: Any) -> dict:
 
     Returns:
         dict: Dictionary containing the JSON data.
+
+    Raises:
+        FileNotFoundError: If the file does not exist.
+        JSONDecodeError: If the JSON file is invalid.
+        Exception: If an unexpected error occurs.
     """
     if not file_path.exists():
         raise FileNotFoundError(f"File {file_path} does not exist.")
@@ -164,15 +185,16 @@ def json_to_dict(file_path: Path, **kwargs: Any) -> dict:
     try:
         with open(file_path, "r") as json_file:
             return json.load(json_file, **kwargs)
-    except JSONDecodeError as e:
+
+    except (JSONDecodeError, FileNotFoundError) as e:
         error_logger.error(f"JSON Decode error: {e}")
-        raise ValueError(f"Error reading JSON file {file_path}: {e}") from e
+        raise
     except Exception as e:
         error_logger.error(f"Unexpected error: {e}")
         raise
 
 
-def pickle_to_file(obj: Any, file_path: Path) -> None:
+def pickle_to_file(obj: Any, file_path: Path):
     """
     Pickle an object to a file.
 
@@ -181,7 +203,8 @@ def pickle_to_file(obj: Any, file_path: Path) -> None:
         file_path (Path): Path to the pickle file.
 
     Raises:
-        ValueError: If pickling fails.
+        PickleError: If pickling fails.
+        Exception: If an unexpected error occurs.
     """
     try:
         with open(file_path, "wb") as pkl_file:
@@ -189,9 +212,7 @@ def pickle_to_file(obj: Any, file_path: Path) -> None:
 
     except pickle.PickleError as e:
         error_logger.error(f"Pickle error: {e}")
-        raise ValueError(
-            f"Error pickling object to file {file_path}: {e}"
-        ) from e
+        raise
     except Exception as e:
         error_logger.error(f"Unexpected error: {e}")
         raise
@@ -208,7 +229,9 @@ def file_to_pickle(file_path: Path) -> Any:
         Any: The object loaded from the pickle file.
 
     Raises:
-        ValueError: If unpickling fails.
+        FileNotFoundError: If the file does not exist.
+        PickleError: If unpickling fails.
+        Exception: If an unexpected error occurs.
     """
     if not file_path.exists():
         raise FileNotFoundError(f"File {file_path} does not exist.")
@@ -219,9 +242,7 @@ def file_to_pickle(file_path: Path) -> Any:
 
     except pickle.PickleError as e:
         error_logger.error(f"Pickle error: {e}")
-        raise ValueError(
-            f"Error unpickling object from file {file_path}:{e}"
-        ) from e
+        raise
     except Exception as e:
         error_logger.error(f"Unexpected error: {e}")
         raise
@@ -236,7 +257,7 @@ if __name__ == "__main__":
 
     # Test file paths
     test_csv_path = test_dir / "test.csv"
-    test_json_path = test_dir / "test.json"
+    test_json_path: Path = test_dir / "test.json"
     test_pickle_path = test_dir / "test.pkl"
 
     # Test DataFrame

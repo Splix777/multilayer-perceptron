@@ -157,7 +157,7 @@ class Config:
 if __name__ == "__main__":
     try:
         config = Config(
-            config_path=Path(__file__).parent / "../../wrong_config.json"
+            config_path=Path(__file__).parent / "../../config.json"
         )
 
         pretty_config: str = json.dumps(config.config.model_dump(), indent=4)

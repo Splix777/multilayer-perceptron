@@ -54,7 +54,8 @@ class Plotter:
                 Generates and saves box plots for the specified
                 columns, grouped by the specified hue.
 
-            plot_model_history(model_name: str, history: History, save_path: Path):
+            plot_model_history(
+                model_name: str, history: History, save_path: Path):
                 Plots and saves the training and validation loss and
                 accuracy over epochs for a given model history.
         """
@@ -186,8 +187,10 @@ class Plotter:
 
         Args:
             columns (list[str]): A list of feature names to be plotted.
-            hue (str): The name of the column used to group the data in the box plots.
-            data (pd.DataFrame): The DataFrame containing the data to be visualized.
+            hue (str): The name of the column used to group the
+                data in the box plots.
+            data (pd.DataFrame): The DataFrame containing
+                the data to be visualized.
 
         Returns:
             None

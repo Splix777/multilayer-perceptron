@@ -12,10 +12,17 @@ def one_hot_encoding(
 
     Args:
         X (DataFrame): Input features data.
-        target_column (str): Name of the target column in the dataset (default 'diagnosis').
+        target_column (str): Name of the target column
+            in the dataset (default 'diagnosis').
 
     Returns:
         tuple: Numpy array of features and one-hot encoded target.
+
+    Raises:
+        ValueError: If the target column is missing or contains
+            missing values, if features contain missing values,
+            if the target column contains negative values, or
+            if the number of classes is less than or equal to 1.
     """
     # Ensure the target column exists in the DataFrame
     if target_column not in X.columns:
@@ -45,7 +52,7 @@ def one_hot_encoding(
             f"Target column '{target_column}' contains negative values."
         )
 
-    # Determine the number of classes based on unique values in the target column
+    # Determine the number of classes based on unique values
     num_classes: int = len(np.unique(y_true))
 
     # Ensure num_classes is greater than 1
@@ -55,7 +62,9 @@ def one_hot_encoding(
         )
 
     # One-hot encode the labels
-    y_one_hot: NDArray[np.float64] = np.eye(num_classes, dtype=np.float64)[y_true]
+    y_one_hot: NDArray[np.float64] = np.eye(
+        N=num_classes,
+        dtype=np.float64)[y_true]
 
     return X_feature, y_one_hot
 
@@ -73,6 +82,12 @@ def label_encoding(
 
     Returns:
         tuple: Numpy array of features and label encoded target.
+
+    Raises:
+        ValueError: If the target column is missing or contains
+            missing values, if features contain missing values,
+            if the target column contains negative values, or
+            if the number of classes is less than or equal to 1.
     """
     # Ensure the target column exists in the DataFrame
     if target_column not in X.columns:
@@ -103,10 +118,11 @@ def label_encoding(
         )
 
     # Check if there is more than one class
-    num_classes = len(np.unique(y_true))
+    num_classes: int = len(np.unique(y_true))
     if num_classes <= 1:
         raise ValueError(
-            f"Label encoding requires more than one class, but got {num_classes}."
+            f"""Label encoding requires more than one class,
+            but got {num_classes}."""
         )
 
     # Label encode the labels (map each class to an integer)

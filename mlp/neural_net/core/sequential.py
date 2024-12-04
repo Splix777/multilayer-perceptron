@@ -8,10 +8,10 @@ from pydantic import ValidationError
 
 from sklearn.model_selection import train_test_split
 
+from mlp.neural_net.core.model import Model
 from mlp.schemas.fit_params import FitParams
 from mlp.schemas.split_data import SplitData
 from mlp.neural_net.history.model_history import History
-from mlp.neural_net.core.model import Model
 from mlp.neural_net.layers.layer import Layer
 from mlp.neural_net.layers.input import InputLayer
 from mlp.neural_net.layers.dense import Dense
@@ -46,7 +46,7 @@ class Sequential(Model):
         self.training_mode = True
 
     # <-- Add Layers -->
-    def add(self, layer: Layer) -> None:
+    def add(self, layer: Layer):
         """
         Add a layer to the model.
 
@@ -60,15 +60,12 @@ class Sequential(Model):
             ValueError: If the layer is not an instance of Layer.
         """
         if not isinstance(layer, Layer):
-            self.logger.error(
-                f"Layer: {layer.__class__.__name__} is not an instance of Layer."
-            )
-            raise ValueError("You can only add a Layer instance to the model.")
+            raise ValueError("You can only add a Layer instance to model.")
 
-        # The First layer should specify the input shape
-        if len(self.layers) == 0:
-            if not isinstance(layer, InputLayer) or layer.input_shape is None:
-                raise ValueError("First layer should specify the input shape.")
+        if len(self.layers) == 0 and (
+            not isinstance(layer, InputLayer) or layer.input_shape is None
+        ):
+            raise ValueError("First layer should specify the input shape.")
 
         if len(self.layers) > 0:
             layer.input_shape = self.layers[-1].output_shape
@@ -76,12 +73,11 @@ class Sequential(Model):
         layer.build(layer.input_shape)
         self.layers.append(layer)
 
-        # Validation: Ensure at least one trainable layer exists before building the model
         if len(self.layers) > 1 and any(ly.trainable for ly in self.layers):
             self.built = True
 
     # <-- Compile Model -->
-    def compile(self, loss: str, optimizer: str, learning_rate: float = 0.001):
+    def compile(self, loss: str, optimizer: str, learning_rate: float):
         """
         Configure the model for training.
 
@@ -139,12 +135,15 @@ class Sequential(Model):
 
         for layer in self.layers:
             inputs = layer.call(inputs)
-            if layer.trainable and self.training_mode:
-                if isinstance(layer.kernel_regularizer, Regularizer):
-                    regularization_penalty: float = layer.kernel_regularizer(
-                        layer.weights
-                    )
-                    inputs += regularization_penalty
+            if (
+                layer.trainable
+                and self.training_mode
+                and isinstance(layer.kernel_regularizer, Regularizer)
+            ):
+                regularization_penalty: float = layer.kernel_regularizer(
+                    layer.weights
+                )
+                inputs += regularization_penalty
 
         return inputs
 
@@ -156,14 +155,12 @@ class Sequential(Model):
         loss_gradient (np.ndarray): Gradient of the losses
             with respect to the output of the model.
 
-        Returns:
-        np.ndarray: Gradient of the losses with respect
-            to the input of the model (typically not used).
-
         Raises:
-        TypeError: If loss_gradient is not a numpy array
-            or learning_rate is not a float.
+        ValueError: If the loss_gradients are not of type np.ndarray.
         """
+        if not isinstance(loss_gradients, np.ndarray):
+            raise ValueError("Loss gradients must be of type np.ndarray.")
+
         for layer in reversed(self.layers):
             loss_gradients = layer.backward(loss_gradients)
             if layer.trainable:
@@ -175,13 +172,13 @@ class Sequential(Model):
         X: pd.DataFrame,
         epochs: int,
         val_data: pd.DataFrame,
-        callbacks: list[Callback] = [],
+        callbacks: Optional[list[Callback]] = None,
         batch_size: int = 32,
         verbose: bool = False,
         val_split: float = 0.2,
         batch_size_mode: str = "auto",
-        min_batch_size: int = 16,
-        max_batch_size: int = 1024,
+        min_batch_size: int = 8,
+        max_batch_size: int = 2048,
         batch_size_factor: float = 1.1,
     ) -> None:
         """
@@ -202,7 +199,7 @@ class Sequential(Model):
             verbose (bool, optional): Whether to print training
                 progress. Defaults to False.
             batch_size_mode (str, optional): Mode for batch size
-                adjustment. Must be 'auto' or 'fixed'. Defaults to 'fixed'.
+                adjustment. Must be 'auto' or 'fixed'.
             min_batch_size (int, optional): Minimum batch size allowed
                 in 'auto' mode. Defaults to 16.
             max_batch_size (int, optional): Maximum batch size allowed
@@ -248,10 +245,7 @@ class Sequential(Model):
             )
 
             log: dict[str, float] = self._update_metrics(
-                train_loss,
-                train_accuracy,
-                val_loss,
-                val_accuracy
+                train_loss, train_accuracy, val_loss, val_accuracy
             )
 
             # Adjust batch size if necessary
@@ -265,21 +259,15 @@ class Sequential(Model):
                 max_batch_size,
             )
 
-            # Store the current epoch's loss for comparison in the next epoch
+            # Current epoch's loss for comparison in the next epoch
             previous_train_loss = train_loss[-1]
 
-            self._print_epoch_log(
-                verbose,
-                epoch,
-                epochs,
-                log,
-                batch_size,
-            )
+            self._print_epoch_log(verbose, epoch, epochs, log, batch_size)
 
-            for callback in callbacks:
+            for callback in self.callbacks:
                 callback.on_epoch_end(epoch, logs=log)
 
-        for callback in callbacks:
+        for callback in self.callbacks:
             callback.on_train_end()
 
     def predict(self, X: pd.DataFrame) -> np.ndarray:
@@ -359,16 +347,15 @@ class Sequential(Model):
         Args:
             layer (Layer): The layer to update the weights for.
         """
-        if layer.kernel_regularizer and isinstance(
-            layer.kernel_regularizer, Regularizer
+        if isinstance(layer.kernel_regularizer, Regularizer) and isinstance(
+            layer, Dense
         ):
-            if isinstance(layer, Dense):
-                layer.weight_gradients += layer.kernel_regularizer.gradient(
-                    layer.weights
-                )
-                layer.bias_gradients += layer.kernel_regularizer.gradient(
-                    layer.bias
-                )
+            layer.weight_gradients += layer.kernel_regularizer.gradient(
+                layer.weights
+            )
+            layer.bias_gradients += layer.kernel_regularizer.gradient(
+                layer.bias
+            )
 
         if layer.optimizer:
             layer.weights, layer.bias = layer.optimizer.update(
@@ -455,19 +442,20 @@ class Sequential(Model):
         Get the weights of the model.
 
         Returns:
-            list: List of weights for each layer.
+            list: List of tuples containing weights and biases
         """
         return [layer.get_weights() for layer in self.layers]
 
-    def set_weights(self, weights: list):
+    def set_weights(self, weights: list[tuple]):
         """
         Set the weights of the model.
 
         Args:
-            weights (list): List of weights for each layer.
+            weights (list): List of tuples containing weights
+                and biases.
         """
-        for layer, (w, b) in zip(self.layers, weights):
-            layer.set_weights(weights=w, bias=b)
+        for layer, (weight, bias) in zip(self.layers, weights):
+            layer.set_weights(weights=weight, bias=bias)
 
     # <-- Validation and Initializer -->
     def _prepare_fit(
@@ -476,7 +464,7 @@ class Sequential(Model):
         epochs: int,
         val_split: float,
         val_data: pd.DataFrame,
-        callbacks: list[Callback],
+        callbacks: Optional[list[Callback]],
         batch_size: int,
         verbose: bool,
         batch_size_mode: str,
@@ -484,6 +472,29 @@ class Sequential(Model):
         max_batch_size: int,
         batch_size_factor: float,
     ) -> SplitData:
+        """
+        Prepare the model for training.
+
+        Args:
+            X (DataFrame): Input features data.
+            epochs (int): Number of epochs to train the model.
+            val_split (float): Fraction of the training data
+                to be used for validation.
+            val_data (DataFrame): Validation features data.
+            callbacks (list[Callback]): List of callback instances.
+            batch_size (int): Number of samples per batch.
+            verbose (bool): Whether to print training progress.
+            batch_size_mode (str): Mode for batch size adjustment.
+            min_batch_size (int): Minimum batch size allowed.
+            max_batch_size (int): Maximum batch size allowed.
+            batch_size_factor (float): Scaling factor for batch size.
+
+        Returns:
+            SplitData: Training and validation data.
+
+        Raises:
+            ValueError: If the inputs are invalid.
+        """
         try:
             params = FitParams(
                 X=X,
@@ -499,26 +510,27 @@ class Sequential(Model):
                 batch_size_factor=batch_size_factor,
             )
         except ValidationError as e:
-            raise ValueError(f"Invalid inputs to fit method: {e}")
+            raise ValueError(f"Invalid inputs to fit method: {e}") from e
 
         # Callbacks initialization
-        self._init_callbacks(params.callbacks or [])
+        self._init_callbacks(params.callbacks)
 
-        # Encoder Data
+        # Validated data split
         data: SplitData = self._split_data(
-            params.X, params.val_data, params.val_split
+            X=params.X, val_data=params.val_data, val_split=params.val_split
         )
 
         return data
 
-    def _init_callbacks(self, callbacks: list[Callback]) -> None:
+    def _init_callbacks(self, callbacks: Optional[list[Callback]]):
         """
         Initialize the callbacks.
 
         Args:
-            callbacks (list of objects): List of callback objects.
+            callbacks (list[Callback]): List of callback instances.
         """
         if not callbacks:
+            self.callbacks = []
             return
         for callback in callbacks:
             callback.set_model(self)
@@ -534,12 +546,12 @@ class Sequential(Model):
 
         Args:
             X (DataFrame): Input features data.
+            val_data (DataFrame): Validation features data.
             val_split (float): Fraction of the training data
                 to be used for validation.
-            val_data (DataFrame): Validation features data.
 
         Returns:
-            tuple: Tuple of training and validation data.
+            SplitData: Training and validation data.
         """
         if val_data.empty:
             X, val_data = train_test_split(X, test_size=val_split)
@@ -566,15 +578,22 @@ class Sequential(Model):
         val_accuracy: float,
     ) -> dict[str, float]:
         """
-        Update the metrics for the model and log them in the History class.
+        Update the metrics for the model and log them in
+        the History class.
+
+        Args:
+            losses (list): List of training losses.
+            metrics (list): List of training metrics.
+            val_loss (float): Validation loss.
+            val_accuracy (float): Validation accuracy.
+
+        Returns:
+            dict: Dictionary of the updated metrics.
         """
         train_loss = float(np.mean(losses))
         train_accuracy = float(np.mean(metrics))
         self.history.log_epoch(
-            train_loss,
-            train_accuracy,
-            val_loss,
-            val_accuracy
+            train_loss, train_accuracy, val_loss, val_accuracy
         )
 
         return {
@@ -621,10 +640,12 @@ class Sequential(Model):
                 f"| {parameters:<12}"
             )
 
-        lines.append(separator)
-        lines.append(
-            f"{'Total':<10} | {'':<20} | {'':<10} | {'':<20} "
-            f"| {self.count_parameters():<12}"
+        lines.extend(
+            [
+                separator,
+                f"{'Total':<10} | {'':<20} | {'':<10} | {'':<20} "
+                f"| {self.count_parameters():<12}",
+            ]
         )
 
         return "\n".join(lines)

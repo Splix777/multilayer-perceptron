@@ -5,7 +5,6 @@ from functools import wraps
 from .logger import error_logger, info_logger
 
 
-# List of exceptions to handle
 KNOWN_EXCEPTIONS: Tuple[Type[Exception], ...] = (
     ValueError,
     KeyError,
@@ -76,7 +75,6 @@ def timeit(method: Callable[..., Any]) -> Callable[..., Any]:
 
 
 if __name__ == "__main__":
-
     @error_handler(suppress=True)
     def test_error_handler() -> None:
         """Test function for the error_handler decorator."""

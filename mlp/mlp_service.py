@@ -59,11 +59,11 @@ class MultiLayerPerceptron:
         Evaluate a trained model using the given data.
 
         Args:
-            model_path (str): Path to the trained model pickle file.
-            data_path (str): Path to the data CSV file.
+            model_path (Path): Path to the trained model pickle file.
+            data_path (Path): Path to the data CSV file.
 
         Returns:
-            str: Evaluation results.
+            tuple: Model loss and accuracy
         """
         model_package: PackagedModel = file_to_pickle(file_path=model_path)
 
@@ -85,8 +85,8 @@ class MultiLayerPerceptron:
         Predict the target labels using the given data.
 
         Args:
-            model_path (str): Path to the trained model pickle file.
-            data_path (str): Path to the data CSV file.
+            model_path (Path): Path to the trained model pickle file.
+            data_path (Path): Path to the data CSV file.
 
         Returns:
             list: Predicted labels.
@@ -131,7 +131,7 @@ class MultiLayerPerceptron:
                 missing required keys.
 
         Returns:
-            str: Success message with the name of the trained model.
+            Path: Path to the saved model.
         """
         data: pd.DataFrame = csv_to_dataframe(file_path=dataset_path)
         labeled_df, df_col_names = self._create_df_with_labels(data=data)
@@ -436,7 +436,10 @@ if __name__ == "__main__":
         # )
 
         mlp = MultiLayerPerceptron()
-        mlp.train_model(config_path=conf_path, dataset_path=train_path, plot=False)
+        mlp.train_model(
+            config_path=conf_path,
+            dataset_path=train_path,
+            plot=False)
         print(mlp.predict(model_path=mpath, data_path=test_path))
         print(mlp.evaluate_model(model_path=mpath, data_path=test_path))
 

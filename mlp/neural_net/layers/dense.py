@@ -3,6 +3,7 @@ from typing import Optional
 import numpy as np
 from numpy.typing import NDArray
 
+from mlp.neural_net.layers.layer import Layer
 from mlp.neural_net.activations.leaky_relu import LeakyReLU
 from mlp.neural_net.activations.parametric_relu import ParametricReLU
 from mlp.neural_net.activations.relu import ReLU
@@ -13,7 +14,6 @@ from mlp.neural_net.regulizers.l1_regulizer import L1Regularizer
 from mlp.neural_net.regulizers.l2_regulizer import L2Regularizer
 from mlp.neural_net.regulizers.regulizer import Regularizer
 from mlp.neural_net.optimizers.optimizer import Optimizer
-from mlp.neural_net.layers.layer import Layer
 
 
 class Dense(Layer):
@@ -47,12 +47,14 @@ class Dense(Layer):
         # Protocol Attributes
         self.trainable = True
         self.built = False
-        self.input_shape: tuple[int, ...] = (0,0)
-        self.output_shape: tuple[int, ...] = (0,0)
+        self.input_shape: tuple[int, ...] = (0, 0)
+        self.output_shape: tuple[int, ...] = (0, 0)
         self.weights: NDArray[np.float64] = np.empty(0)
         self.bias: NDArray[np.float64] = np.empty(0)
         self.optimizer: Optional[Optimizer] = None
-        self.kernel_regularizer: Optional[str | Regularizer] = kernel_regularizer
+        self.kernel_regularizer: Optional[str | Regularizer] = (
+            kernel_regularizer
+        )
         self.weight_gradients: NDArray[np.float64]
         self.bias_gradients: NDArray[np.float64]
         # Dense Attributes
@@ -123,7 +125,9 @@ class Dense(Layer):
         self.z: NDArray[np.float64] = np.dot(inputs, self.weights) + self.bias
 
         if self.activation_function:
-            self.activation_output: NDArray[np.float64] = self.activation_function(self.z)
+            self.activation_output: NDArray[np.float64] = (
+                self.activation_function(self.z)
+            )
 
         return self.activation_output
 
@@ -140,13 +144,15 @@ class Dense(Layer):
                 the input of the Dense layer.
         """
         if self.activation_function:
-            activation_gradients: NDArray[np.float64] = self.activation_function.gradient(
-                x=self.activation_output
+            activation_gradients: NDArray[np.float64] = (
+                self.activation_function.gradient(x=self.activation_output)
             )
 
             loss_gradients = loss_gradients * activation_gradients
 
-        if self.optimizer and isinstance(self.activation_function, ParametricReLU):
+        if self.optimizer and isinstance(
+            self.activation_function, ParametricReLU
+        ):
             self.activation_function.update_alpha(
                 loss_gradients=loss_gradients,
                 input_data=self.z,
@@ -177,7 +183,9 @@ class Dense(Layer):
         """
         return self.weights, self.bias
 
-    def set_weights(self, weights: NDArray[np.float64], bias: NDArray[np.float64]):
+    def set_weights(
+        self, weights: NDArray[np.float64], bias: NDArray[np.float64]
+    ):
         """
         Set the weights and biases of the Dense layer.
 
@@ -225,7 +233,9 @@ class Dense(Layer):
             raise ValueError(
                 f"Unknown kernel initializer: " f"{self.kernel_initializer}"
             )
-        self.weight_gradients: NDArray[np.float64] = np.zeros_like(self.weights)
+        self.weight_gradients: NDArray[np.float64] = np.zeros_like(
+            self.weights
+        )
 
     def _initialize_bias(self) -> None:
         """
@@ -283,11 +293,16 @@ class Dense(Layer):
                 "sigmoid": Sigmoid(),
                 "softmax": Softmax(),
             }.get(activation)
-        except KeyError:
+
+            if self.activation_function is None:
+                raise KeyError(
+                    f"Unknown activation function: " f"{activation}"
+                )
+
+        except KeyError as e:
             raise ValueError(
                 f"Unknown activation function: " f"{activation}"
-            )
-
+            ) from e
 
     @property
     def learning_rate(self) -> float:

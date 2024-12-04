@@ -31,9 +31,10 @@ class History:
         """Converts metrics to a Pandas DataFrame for analysis."""
         return pd.DataFrame(self.metrics)
 
-    def plot(self,
-             model_name: Optional[str] = None,
-             save_path: Optional[Path] = None
+    def plot(
+        self,
+        model_name: Optional[str] = None,
+        save_path: Optional[Path] = None,
     ) -> None:
         """Plots training and validation metrics."""
         df: pd.DataFrame = self.to_dataframe()
@@ -58,6 +59,6 @@ class History:
         plt.legend()
 
         plt.tight_layout()
-        
+
         plt.savefig(save_path) if save_path else plt.show()
         plt.close()

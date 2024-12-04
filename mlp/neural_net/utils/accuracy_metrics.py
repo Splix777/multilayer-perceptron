@@ -11,7 +11,7 @@ def binary_accuracy(
     Args:
         y_true (NDArray[np.float64]): Ground truth binary labels.
         y_pred (NDArray[np.float64]): Predicted probabilities
-        	or binary predictions.
+            or binary predictions.
 
     Returns:
         float: Binary accuracy score.
@@ -29,20 +29,21 @@ def categorical_accuracy(
 
     Args:
         y_true (NDArray[np.float64]): Ground truth one-hot labels
-        	or class indices.
+            or class indices.
         y_pred (NDArray[np.float64]): Predicted probabilities
-        	or class scores.
+            or class scores.
 
     Returns:
         float: Categorical accuracy score.
 
     Raises:
         ValueError: If `y_true` and `y_pred` do not have
-        	the same number of samples.
+            the same number of samples.
     """
     if y_true.shape[0] != y_pred.shape[0]:
         raise ValueError(
-            "Shape mismatch: y_true and y_pred must have the same number of samples."
+            """Shape mismatch: y_true and y_pred must have the
+            same number of samples."""
         )
     true_classes = np.argmax(y_true, axis=1) if y_true.ndim > 1 else y_true
     pred_classes = np.argmax(y_pred, axis=1)

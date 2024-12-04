@@ -24,7 +24,7 @@ def shuffle_data(
         )
 
     # Generate random indices
-    random_indices: NDArray[np.long] = np.random.permutation(x.shape[0])
+    random_indices: NDArray[np.int64] = np.random.permutation(x.shape[0])
 
     # Shuffle the features and target data
     x_shuffled: NDArray[np.float64] = x[random_indices]
@@ -39,9 +39,9 @@ def iter_batches(
     batch_size: int = 32,
     shuffle: bool = True,
 ) -> Generator[
-    tuple[NDArray[np.float64], NDArray[np.float64]],  # Value yielded
-    None,  # Value that can be sent to the generator (you don't send anything here)
-    None   # Return value of the generator when it finishes (THE MORE YOU KNOW!)
+    tuple[NDArray[np.float64], NDArray[np.float64]],
+    None,
+    None
 ]:
     """
     Generate mini-batches of data for training or evaluation.
@@ -59,8 +59,8 @@ def iter_batches(
         X, y = shuffle_data(X, y)
 
     for i in range(0, X.shape[0], batch_size):
-        X_batch: NDArray[np.float64]  = X[i : i + batch_size]
-        y_batch: NDArray[np.float64] | NDArray[np.intp] = y[i : i + batch_size]
+        X_batch: NDArray[np.float64] = X[i: i + batch_size]
+        y_batch: NDArray[np.float64] | NDArray[np.intp] = y[i: i + batch_size]
         yield X_batch, y_batch
 
 

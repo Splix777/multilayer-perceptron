@@ -11,22 +11,18 @@ from mlp.utils.config import Config
 class Logger(logging.Logger):
     def __init__(
         self,
-        name: str =__name__,
+        name: str = __name__,
         config: Config = Config(),
         color: Literal["red", "green", "yellow", "cyan", "white"] = "green",
-        **kwargs
-    ) -> None:
+    ):
         """
         Initializes the logger object.
 
         Args:
             name (str): The name of the logger.
             config (Config): The configuration object.
-            **kwargs: Additional keyword arguments.
-                color (str): The color
-
-        Returns:
-            None
+            color (Literal["red", "green", "yellow", "cyan", "white"]):
+                The color of the logger.
         """
         super().__init__(name)
         self.config: Config = config
@@ -40,11 +36,11 @@ class Logger(logging.Logger):
 
         # File handler
         log_file: Path = self.config.logs_dir / f"{name}.log"
-        file_handler = logging.FileHandler(log_file, mode="w")
+        file_handler = logging.FileHandler(filename=log_file, mode="w")
         file_handler.setLevel(self.config.config.settings["log_level"])
-        file_formatter = logging.Formatter(log_format)
-        file_handler.setFormatter(file_formatter)
-        self.addHandler(file_handler)
+        file_formatter = logging.Formatter(fmt=log_format)
+        file_handler.setFormatter(fmt=file_formatter)
+        self.addHandler(hdlr=file_handler)
 
         # Stream handler with colors
         stream_handler = logging.StreamHandler()
@@ -60,7 +56,7 @@ class Logger(logging.Logger):
             },
             stream=stream_handler.stream,
         )
-        self.addHandler(stream_handler)
+        self.addHandler(hdlr=stream_handler)
 
     def __call__(self) -> logging.Logger:
         """Returns the logger object."""
@@ -82,9 +78,10 @@ class Logger(logging.Logger):
         Logs a message with optional context information in JSON format.
 
         Args:
-            level (str): The logging level (e.g., 'info', 'error', 'warning').
+            level (str): The logging level.
             message (str): The log message.
-            context (Optional[dict]): Dictionary of additional context to log.
+            context (Optional[dict]): Dictionary of
+                additional context to log.
         """
         context_message = json.dumps(context, indent=4) if context else ""
         log_message = f"{message} | Context: {context_message}"
