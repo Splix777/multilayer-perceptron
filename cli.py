@@ -113,11 +113,13 @@ def configure_new_model() -> str:
         if layer_type == "dense":
             units = Prompt.ask("[blue]Enter the number of units[/blue]")
             activation = Prompt.ask(
-                "[blue]Select activation function (lrelu, relu, sigmoid, tanh, softmax)[/blue]",
+                """[blue]Select activation function
+                (lrelu, relu, sigmoid, tanh, softmax)[/blue]""",
                 choices=["lrelu", "relu", "sigmoid", "tanh", "softmax"],
             )
             kernel_initializer = Prompt.ask(
-                "[blue]Select kernel initializer (glorot_uniform, he_normal)[/blue]",
+                """[blue]Select kernel:
+                (glorot_uniform, he_normal)[/blue]""",
                 choices=["glorot_uniform", "he_normal"],
             )
             kernel_regularizer = Prompt.ask(
@@ -151,7 +153,8 @@ def configure_new_model() -> str:
     }
 
     loss = Prompt.ask(
-        "[blue]Select loss function (categorical_crossentropy, binary_crossentropy)[/blue]",
+        """[blue]Select loss function:
+        (categorical_crossentropy, binary_crossentropy)[/blue]""",
         choices=["categorical_crossentropy", "binary_crossentropy"],
     )
 
